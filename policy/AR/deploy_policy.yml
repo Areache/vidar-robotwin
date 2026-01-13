@@ -1,0 +1,40 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: AR
+task_name: open_laptop
+task_config: hd_randomized
+ckpt_setting: Null
+seed: 1234
+instruction_type: seen
+num_new_frames: 80
+num_sampling_step: 5
+max_steps: 160
+save_dir: eval_result/ar
+port: 24970
+guide_scale: 5.0
+rollout_bound: 60
+rollout_prefill_num: 33
+# Video model subgoal configuration
+use_video_subgoals: False  # 是否启用video model生成subgoal frames
+# LIBERO subgoal configuration
+use_libero_subgoal: True  # 是否启用 LIBERO video model 生成 subgoal frames
+libero_use_direct_model: False  # 是否直接调用 model（true）或通过 HTTP 服务器（false）- 已切换到 HTTP 模式
+# 从配置文件加载（类似plan_lb.py的方式）
+# 设置video_model_config_path为配置文件路径，例如: "config/libero/lb_tk8_65to72.py"
+# 配置文件需要包含 base['diffusion']['vid_diffusion'] 字典
+video_model_config_path: "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/vm/config/libero/lb_tk8_65to72.py" 
+# 直接调用模式配置（当 libero_use_direct_model=true 时使用）
+libero_model_path: "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/vm/ckpts/libero/libero_ep20_bs12_aug"  # video model checkpoint 目录
+libero_milestone: 180000  # checkpoint milestone 编号
+# 可选：完整加载路径（如果使用 load_lb_diffusion）
+# libero_logbase: "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/vm/logs"
+# libero_dataset: "libero-8tk-65to72-v3"
+# libero_exp_name: "lb_tk8_65to72"
+# libero_epoch: "latest"
+
+# HTTP 服务器模式配置（当 libero_use_direct_model=false 时使用）
+libero_subgoal_port: 25401  # LIBERO subgoal 服务器端口
+
+# 兼容旧配置（已废弃，建议使用上面的配置）
+video_model_config_path: "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/vm/config/libero/lb_tk8_65to72.py"  # 已废弃
+use_vid_first_n_frames: 2  # 已废弃
+num_vid_pred_per_ep: 5  # 已废弃

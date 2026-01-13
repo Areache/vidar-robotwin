@@ -1,0 +1,19 @@
+# conda env create --prefix /path/to/env --file RoboTwin-hb-custom.yaml
+# Customized version for current system: CUDA 12.8, gcc 11.4.0
+name: RoboTwin-hb
+channels:
+  # - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip=25.0
+  - cmake
+  - ninja
+  - gcc=12.4.0  # conda will install its own version
+  - gxx=12.4.0  # conda will install its own version
+  - cuda=12.8   # Adjusted to match system CUDA 12.8
+  - cuda-nvcc=12.8
+  - cuda-toolkit=12.8
+  - libgl
+  - ffmpeg
+

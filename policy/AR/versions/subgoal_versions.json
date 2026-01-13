@@ -1,0 +1,46 @@
+{
+  "versions": {
+    "v0_original": {
+      "name": "v0_original",
+      "description": "Original implementation without subgoal support",
+      "use_subgoals": false,
+      "robotwin_params": {
+        "use_libero_subgoal": false
+      },
+      "vidar_params": {
+        "subgoal_frames": null,
+        "subgoal_guidance_scale": 0.0
+      }
+    },
+    "v1_subgoal": {
+      "name": "v1_subgoal",
+      "description": "Current implementation with LIBERO subgoal support (HTTP server mode, same as original)",
+      "use_subgoals": true,
+      "robotwin_params": {
+        "use_libero_subgoal": true,
+        "libero_use_direct_model": false,
+        "subgoal_interval": 8
+      },
+      "vidar_params": {
+        "subgoal_guidance_scale": 0.5
+      }
+    },
+    "df": {
+      "name": "df",
+      "description": "Diffusion forcing version - isolated implementation for inference-time diffusion forcing",
+      "use_subgoals": false,
+      "robotwin_params": {
+        "use_libero_subgoal": false,
+        "libero_use_direct_model": false,
+        "subgoal_interval": 8,
+        "use_diffusion_forcing": true
+      },
+      "vidar_params": {
+        "subgoal_frames": null,
+        "subgoal_guidance_scale": 0.0,
+        "use_diffusion_forcing": true
+      }
+    }
+  }
+}
+
