@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/RoboTwin-hb/bin/python
 """
 Train Vidarc (Stage 2): Causal fine-tuning with Self-Forcing.
 
@@ -9,19 +9,30 @@ This script implements Stage 2 training from the Vidarc paper:
 - Optional embodiment-aware loss
 
 Example usage:
-    # Single GPU
-    python scripts/train_vidarc.py \
-        --config configs/vidarc_causal.yaml \
-        --data-dir /path/to/dataset \
-        --ckpt-dir /path/to/Wan2.2-TI2V-5B \
-        --pt-dir /path/to/vidar.pt
+    # Recommended: Use the shell wrapper (consistent with run_eval_ddp_causal.sh)
+    bash run_train_vidarc.sh \
+        configs/vidarc_2xh200.yaml \
+        /path/to/dataset \
+        /path/to/Wan2.2-TI2V-5B \
+        /path/to/vidar.pt \
+        ./output_vidarc \
+        4000
 
-    # Multi-GPU (FSDP)
+    # Alternative: Manual activation (same pattern as run_eval_ddp_causal.sh)
+    conda activate /mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/RoboTwin-hb
     torchrun --nproc_per_node=2 scripts/train_vidarc.py \
+        --config configs/vidarc_2xh200.yaml \
+        --data-dir /path/to/dataset \
+        --ckpt-dir /path/to/Wan2.2-TI2V-5B \
+        --pt-dir /path/to/vidar.pt \
+        --max-steps 4000
+
+    # Direct Python call (not recommended for distributed training)
+    /mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/RoboTwin-hb/bin/python scripts/train_vidarc.py \
         --config configs/vidarc_causal.yaml \
         --data-dir /path/to/dataset \
         --ckpt-dir /path/to/Wan2.2-TI2V-5B \
-        --pt-dir /path/to/vidar.pt
+        --pt-dir /path/to/vidar.pt 
 """
 
 import os
@@ -29,6 +40,47 @@ import sys
 import argparse
 import logging
 from pathlib import Path
+
+# Initialize logging early (before any error handling that might use logger)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+# Ensure we're using the correct Python environment
+# This matches the pattern used in run_eval_ddp_causal.sh and run_eval_ddp.py
+TARGET_PYTHON = "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/RoboTwin-hb/bin/python"
+TARGET_ENV_PATH = "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/RoboTwin-hb"
+
+# Check if running under torchrun (distributed training)
+is_distributed = "LOCAL_RANK" in os.environ or "RANK" in os.environ
+
+if sys.executable != TARGET_PYTHON:
+    # When using torchrun, verify the environment is correct
+    if is_distributed:
+        # Ensure PATH includes the conda environment bin (for finding tools like ffmpeg)
+        conda_env_bin = f"{TARGET_ENV_PATH}/bin"
+        current_path = os.environ.get("PATH", "")
+        if conda_env_bin not in current_path:
+            os.environ["PATH"] = f"{conda_env_bin}:{current_path}"
+        
+        # Try to import critical dependencies to verify environment
+        try:
+            import h5py
+        except ImportError:
+            error_msg = (
+                f"Error: h5py not found in current Python ({sys.executable}).\n"
+                f"Expected Python: {TARGET_PYTHON}\n"
+                f"Please use the shell wrapper script:\n"
+                f"  bash run_train_vidarc.sh\n"
+                f"Or activate the conda environment first:\n"
+                f"  conda activate {TARGET_ENV_PATH}\n"
+                f"Then run: torchrun --nproc_per_node=N scripts/train_vidarc.py ..."
+            )
+            logger.error(error_msg)
+            print(error_msg, file=sys.stderr)
+            raise
 
 # Add training module to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -39,12 +91,6 @@ import torch.distributed as dist
 from training.config import load_config, VidarConfig
 from training.trainers.vidarc_trainer import create_vidarc_trainer
 from training.distributed.fsdp_utils import setup_distributed, cleanup_distributed
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 
 def parse_args():
