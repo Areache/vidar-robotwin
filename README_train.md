@@ -331,17 +331,182 @@ torchrun --nproc_per_node=2 \
 
 ```
 data/
-├── episodes/
-│   ├── ep_0001/
-│   │   ├── video.mp4      # 10 fps
-│   │   ├── actions.npy    # (T, 14)
-│   │   └── instruction.txt
+├── hdf5/
+│   ├── episode_000000.hdf5
+│   ├── episode_000001.hdf5
 │   └── ...
-└── manifest.json
+├── config.json
+├── instructions.json
+└── episodes.json
 ```
 
-**Pre-training data** (~1M episodes): Egodex, Agibot, RDT, RoboMind
-**Fine-tuning**: RoboTwin (1k eps), Vidarc real-world (2.3k eps)
+### HDF5 Episode Structure
+```
+episode_XXXXXX.hdf5
+├── observations/
+│   ├── unified_image: (T, 720, 640, 3)    # Pre-composed multi-view
+│   ├── images/
+│   │   ├── cam_high: (T, H, W, 3)
+│   │   ├── cam_left_wrist: (T, H, W, 3)
+│   │   └── cam_right_wrist: (T, H, W, 3)
+│   └── qpos: (T, 14)                       # Joint positions
+├── action: (T, 14)                         # Action sequence
+└── instruction (attr): string              # Language instruction
+```
+
+### Unified Observation Layout (720×640)
+```
+┌─────────────────────────────┐
+│      cam_high (360×640)     │  ← Fixed front/rear camera
+├──────────────┬──────────────┤
+│ cam_left     │ cam_right    │
+│ (360×320)    │ (360×320)    │  ← Movable arm cameras
+└──────────────┴──────────────┘
+```
+
+---
+
+## Datasets
+
+### Overview (from Vidarc Paper Table 4)
+
+| Dataset | Episodes | Type | Camera Setup | Use |
+|---------|----------|------|--------------|-----|
+| **Egodex** | 230,949 | Human hands | Movable front | Pre-train |
+| **Agibot** | 728,209 | Genie-1 Robot | Fixed high + left/right arm | Pre-train |
+| **RDT** | 6,083 | Aloha Robot | Fixed front + left/right arm | Pre-train |
+| **RoboMind Franka** | 9,589 | Franka Robot | Fixed opposite + left/right | Pre-train |
+| **RoboMind Aloha** | 7,272 | Aloha Robot | Fixed front + left/right arm | Pre-train |
+| **RoboTwin** | 1,000 | Aloha Robot (Sim) | Fixed rear + left/right arm | **Fine-tune** |
+| **Vidarc** | 2,307 | Aloha Robot (Real) | Fixed rear + left/right arm | **Fine-tune** |
+
+### Open-Source Availability
+
+| Dataset | Open Source | License | Download |
+|---------|-------------|---------|----------|
+| **Egodex** | ✅ Yes | CC-BY-NC-ND | [GitHub](https://github.com/apple/ml-egodex) |
+| **Agibot World** | ✅ Yes | CC BY-NC-SA 4.0 | [HuggingFace](https://huggingface.co/datasets/agibot-world/AgiBotWorld-Beta) |
+| **RDT ft-data** | ✅ Yes | - | [HuggingFace](https://huggingface.co/datasets/robotics-diffusion-transformer/rdt-ft-data) |
+| **RoboMIND** | ✅ Yes | - | [HuggingFace](https://huggingface.co/datasets/x-humanoid-robomind/RoboMIND) |
+| **RoboTwin** | ✅ Yes | MIT | [GitHub](https://github.com/RoboTwin-Platform/RoboTwin) |
+| **Vidarc real-world** | ❌ Not yet | - | [thu-ml/vidar](https://github.com/thu-ml/vidar) (planned) |
+
+### Download Commands
+
+```bash
+# ============================================================
+# Pre-training Datasets (~1M episodes total)
+# ============================================================
+
+# 1. Agibot World Beta (~1M trajectories, ~43.8TB) - LARGEST
+huggingface-cli download --resume-download --repo-type dataset \
+    agibot-world/AgiBotWorld-Beta --local-dir ./data/AgiBotWorld-Beta
+
+# Or Alpha subset (~92k trajectories, ~8.5TB) - smaller
+huggingface-cli download --resume-download --repo-type dataset \
+    agibot-world/AgiBotWorld-Alpha --local-dir ./data/AgiBotWorld-Alpha
+
+# 2. RDT Fine-tuning data (~6k Aloha episodes)
+huggingface-cli download --resume-download --repo-type dataset \
+    robotics-diffusion-transformer/rdt-ft-data --local-dir ./data/rdt-ft-data
+
+# 3. RoboMIND (~107k trajectories across 4 robots)
+huggingface-cli download --resume-download --repo-type dataset \
+    x-humanoid-robomind/RoboMIND --local-dir ./data/RoboMIND
+
+# 4. Egodex (829 hours egocentric video from Apple Vision Pro)
+# See: https://github.com/apple/ml-egodex
+
+# ============================================================
+# Fine-tuning Datasets (1-2k episodes for Stage 2)
+# ============================================================
+
+# 5. RoboTwin Simulation Benchmark
+git clone https://github.com/RoboTwin-Platform/RoboTwin.git ./data/RoboTwin
+# Data: https://huggingface.co/datasets/robotwin (100k+ trajectories)
+```
+
+### Data Preparation Scripts
+
+```bash
+# ============================================================
+# Prepare RDT data for training
+# ============================================================
+# Extract split archive
+cd data/rdt-ft-data
+cat rdt_data.tar.gz.* | tar -xzf -
+cd ../..
+
+# Convert to unified format
+python scripts/prepare_rdt_data.py \
+    --src-dir ./data/rdt-ft-data/rdt_data \
+    --dst-dir ./data/rdt_prepared \
+    --num-frames 81
+
+# ============================================================
+# Prepare RoboTwin data for Stage 2
+# ============================================================
+python scripts/prepare_vidarc_data.py \
+    --src-dir ./data/RoboTwin/data \
+    --dst-dir ./data/robotwin_prepared \
+    --dataset-type robotwin \
+    --num-frames 81
+
+# ============================================================
+# Prepare Agibot data
+# ============================================================
+python scripts/prepare_agibot_rdt.py \
+    --src-dir ./data/AgiBotWorld-Alpha \
+    --dst-dir ./data/agibot_prepared \
+    --num-frames 81
+```
+
+### Instruction Format (Unified Observation Space)
+
+All datasets use scene-description formatted instructions:
+
+```python
+# Template for Aloha robots (RoboTwin, RDT, Vidarc)
+"The whole scene is in a realistic, industrial art style with three views: "
+"a fixed rear camera, a movable left arm camera, and a movable right arm camera. "
+"The aloha robot is currently performing the following task: {task_instruction}"
+
+# Template for Agibot
+"The whole scene is in a realistic, industrial art style with three views: "
+"a fixed high camera, a movable left arm camera, and a movable right arm camera. "
+"The genie-1 robot is currently performing the following task: {task_instruction}"
+```
+
+### Recommended Setup (2×H200)
+
+For **Stage 1** (Vidar fine-tuning):
+- Use subset of pre-training data or RDT + RoboMind (~20k episodes)
+- 14k training steps
+
+For **Stage 2** (Vidarc causal fine-tuning):
+- Only need 1-2k episodes (RoboTwin or RDT subset)
+- 4k training steps
+- Starts from Stage 1 weights (`vidar.pt`)
+
+```bash
+# Minimal Stage 2 setup with RDT data
+python scripts/prepare_rdt_data.py \
+    --src-dir ./data/rdt-ft-data/rdt_data \
+    --dst-dir ./data/vidarc_finetune \
+    --num-frames 81 \
+    --max-episodes 2000  # Use subset for faster iteration
+```
+
+### Data Specifications
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Resolution | 720×640 | Unified observation (H×W) |
+| FPS | 10 | Downsampled from source |
+| Frames/episode | 81 | 8.1 seconds duration |
+| Action dim | 14 | Bimanual joint positions |
+| State dim | 14 | Joint positions (qpos) |
+| CFG dropout | 0.1 | Drop instruction 10% of time |
 
 ---
 
