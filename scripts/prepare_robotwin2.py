@@ -88,6 +88,17 @@ CAMERA_PATTERNS = {
     "wrist": ["wrist_camera", "wrist", "hand_camera"],  # For single-arm robots
 }
 
+# RoboTwin2.0 specific paths
+ROBOTWIN2_CAMERA_PATHS = {
+    "head": "observation/head_camera/rgb",
+    "left": "observation/left_camera/rgb",
+    "right": "observation/right_camera/rgb",
+    "third": "third_view_rgb",
+}
+
+ROBOTWIN2_ACTION_PATH = "joint_action/vector"
+ROBOTWIN2_QPOS_PATHS = ["joint_action/vector", "endpose"]
+
 
 def decode_image(image_data: np.ndarray) -> np.ndarray:
     """
@@ -464,6 +475,70 @@ def load_instructions(src_dir: Path, task_name: str) -> Dict[str, str]:
     return instructions
 
 
+def decode_robotwin2_image(data: bytes) -> Optional[np.ndarray]:
+    """
+    Decode RoboTwin2.0 image from byte string.
+
+    RoboTwin2.0 stores images as JPEG-encoded byte strings.
+    """
+    if data is None:
+        return None
+
+    if not HAS_CV2:
+        logger.error("OpenCV required for decoding RoboTwin2.0 images")
+        return None
+
+    try:
+        # Convert to numpy array if needed
+        if isinstance(data, bytes):
+            nparr = np.frombuffer(data, np.uint8)
+        else:
+            nparr = np.frombuffer(bytes(data), np.uint8)
+
+        # Decode JPEG
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if img is not None:
+            # Convert BGR to RGB
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            return img
+
+    except Exception as e:
+        logger.debug(f"Failed to decode image: {e}")
+
+    return None
+
+
+def load_robotwin2_camera(f: h5py.File, camera_path: str) -> Optional[List[np.ndarray]]:
+    """
+    Load camera frames from RoboTwin2.0 HDF5 file.
+
+    Args:
+        f: Open HDF5 file
+        camera_path: Path to camera rgb data (e.g., 'observation/head_camera/rgb')
+
+    Returns:
+        List of decoded image frames or None
+    """
+    try:
+        if camera_path not in f:
+            return None
+
+        data = f[camera_path]
+        T = data.shape[0]
+
+        frames = []
+        for t in range(T):
+            img = decode_robotwin2_image(data[t])
+            frames.append(img)
+
+        return frames
+
+    except Exception as e:
+        logger.debug(f"Failed to load camera {camera_path}: {e}")
+        return None
+
+
 def process_episode(
     src_path: Path,
     dst_path: Path,
@@ -488,63 +563,56 @@ def process_episode(
     """
     try:
         with h5py.File(src_path, "r") as src:
-            # Find observation group
-            obs_group = None
-            for key in ["observations", "obs", "observation"]:
-                if key in src:
-                    obs_group = src[key]
-                    break
+            # Try RoboTwin2.0 specific paths first
+            frames_head = load_robotwin2_camera(src, ROBOTWIN2_CAMERA_PATHS["head"])
+            frames_left = load_robotwin2_camera(src, ROBOTWIN2_CAMERA_PATHS["left"])
+            frames_right = load_robotwin2_camera(src, ROBOTWIN2_CAMERA_PATHS["right"])
 
-            if obs_group is None:
-                obs_group = src  # Try root level
+            # Fallback: try third_view_rgb as head camera
+            if frames_head is None:
+                frames_head = load_robotwin2_camera(src, ROBOTWIN2_CAMERA_PATHS["third"])
 
-            # Find camera data
-            head_key, head_data = find_camera_data(obs_group, "head")
-            left_key, left_data = find_camera_data(obs_group, "left")
-            right_key, right_data = find_camera_data(obs_group, "right")
+            # Fallback: generic camera search
+            if frames_head is None:
+                obs_group = src.get("observation") or src.get("observations") or src
+                head_key, head_data = find_camera_data(obs_group, "head")
+                if head_data is not None:
+                    frames_head = [decode_image(head_data[t]) for t in range(head_data.shape[0])]
 
-            # For single-arm, try wrist camera
-            if left_data is None and right_data is None:
-                wrist_key, wrist_data = find_camera_data(obs_group, "wrist")
-                if wrist_data is not None:
-                    left_data = wrist_data
-                    right_data = wrist_data
-
-            if head_data is None:
+            if frames_head is None or len(frames_head) == 0:
                 logger.warning(f"No head camera found in {src_path}")
                 return False
 
-            # Determine number of timesteps
-            T = head_data.shape[0]
-            logger.debug(f"Episode length: {T} frames")
+            # Get number of timesteps
+            T = len(frames_head)
 
-            # Load and decode images
-            frames_head = []
-            frames_left = []
-            frames_right = []
+            # Create placeholder for missing cameras
+            sample_shape = None
+            for f in frames_head:
+                if f is not None:
+                    sample_shape = f.shape
+                    break
 
-            for t in range(T):
-                # Head camera
-                img = decode_image(head_data[t])
-                frames_head.append(img if img is not None else np.zeros((480, 640, 3), dtype=np.uint8))
+            if sample_shape is None:
+                sample_shape = (480, 640, 3)
 
-                # Left camera
-                if left_data is not None:
-                    img = decode_image(left_data[t])
-                    frames_left.append(img)
-                else:
-                    frames_left.append(None)
+            # Fill None frames with zeros
+            frames_head = [f if f is not None else np.zeros(sample_shape, dtype=np.uint8) for f in frames_head]
 
-                # Right camera
-                if right_data is not None:
-                    img = decode_image(right_data[t])
-                    frames_right.append(img)
-                else:
-                    frames_right.append(None)
+            if frames_left is None:
+                frames_left = [np.zeros(sample_shape, dtype=np.uint8)] * T
+            else:
+                frames_left = [f if f is not None else np.zeros(sample_shape, dtype=np.uint8) for f in frames_left]
 
+            if frames_right is None:
+                frames_right = [np.zeros(sample_shape, dtype=np.uint8)] * T
+            else:
+                frames_right = [f if f is not None else np.zeros(sample_shape, dtype=np.uint8) for f in frames_right]
+
+            # Convert to numpy arrays
             frames_head = np.array(frames_head)
-            frames_left = np.array([f if f is not None else np.zeros_like(frames_head[0]) for f in frames_left])
-            frames_right = np.array([f if f is not None else np.zeros_like(frames_head[0]) for f in frames_right])
+            frames_left = np.array(frames_left)
+            frames_right = np.array(frames_right)
 
             # Subsample to target FPS
             frames_head = subsample_frames(frames_head, src_fps, TARGET_FPS)
@@ -569,28 +637,32 @@ def process_episode(
                     frames_right[t] if not np.all(frames_right[t] == 0) else None,
                 )
 
-            # Load state (qpos)
-            qpos = None
-            for qpos_key in ["qpos", "joint_positions", "state", "robot_state"]:
-                _, qpos_data = find_camera_data(obs_group, qpos_key) if qpos_key not in obs_group else (qpos_key, obs_group[qpos_key])
-                if qpos_key in obs_group:
-                    qpos = obs_group[qpos_key][:]
-                    qpos = subsample_frames(qpos, src_fps, TARGET_FPS)
-                    if num_frames and len(qpos) > num_frames:
-                        indices = np.linspace(0, len(qpos) - 1, num_frames, dtype=int)
-                        qpos = qpos[indices]
-                    break
-
-            # Load actions
+            # Load actions from RoboTwin2.0 format
             action = None
-            for action_key in ["action", "actions"]:
-                if action_key in src:
-                    action = src[action_key][:]
-                    action = subsample_frames(action, src_fps, TARGET_FPS)
-                    if num_frames and len(action) > num_frames:
-                        indices = np.linspace(0, len(action) - 1, num_frames, dtype=int)
-                        action = action[indices]
-                    break
+            if ROBOTWIN2_ACTION_PATH in src:
+                action = src[ROBOTWIN2_ACTION_PATH][:]
+                action = subsample_frames(action, src_fps, TARGET_FPS)
+                if num_frames and len(action) > num_frames:
+                    indices = np.linspace(0, len(action) - 1, num_frames, dtype=int)
+                    action = action[indices]
+            else:
+                # Fallback: try generic action keys
+                for action_key in ["action", "actions", "joint_action"]:
+                    if action_key in src:
+                        action_data = src[action_key]
+                        if isinstance(action_data, h5py.Group) and "vector" in action_data:
+                            action = action_data["vector"][:]
+                        elif isinstance(action_data, h5py.Dataset):
+                            action = action_data[:]
+                        if action is not None:
+                            action = subsample_frames(action, src_fps, TARGET_FPS)
+                            if num_frames and len(action) > num_frames:
+                                indices = np.linspace(0, len(action) - 1, num_frames, dtype=int)
+                                action = action[indices]
+                            break
+
+            # Load qpos (joint positions) - use action as qpos for RoboTwin2.0
+            qpos = action  # In RoboTwin2.0, joint_action/vector serves as both
 
             # Format instruction
             template = INSTRUCTION_TEMPLATE_DUAL if is_dual_arm else INSTRUCTION_TEMPLATE
@@ -615,7 +687,19 @@ def process_episode(
                 img_grp = obs_grp.create_group("images")
                 img_grp.create_dataset(
                     "cam_high",
-                    data=resize_frame(frames_head[0], (360, 640))[None] if T > 0 else np.zeros((1, 360, 640, 3), dtype=np.uint8),
+                    data=frames_head,
+                    compression="gzip",
+                    compression_opts=4,
+                )
+                img_grp.create_dataset(
+                    "cam_left_wrist",
+                    data=frames_left,
+                    compression="gzip",
+                    compression_opts=4,
+                )
+                img_grp.create_dataset(
+                    "cam_right_wrist",
+                    data=frames_right,
                     compression="gzip",
                     compression_opts=4,
                 )
