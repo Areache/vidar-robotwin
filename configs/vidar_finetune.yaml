@@ -1,0 +1,62 @@
+# Stage 1: Vidar fine-tuning (standard diffusion)
+# Model: WanModel
+# Loss: Flow matching
+
+model:
+  ckpt_dir: checkpoints/Wan2.2-TI2V-5B
+  pt_dir: null
+  model_class: WanModel
+  gradient_checkpointing: true
+
+training:
+  num_steps: 14000
+  batch_size: 128
+  gradient_accumulation: 1
+  lr: 2.0e-5
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  warmup_steps: 200
+  scheduler: cosine
+  freeze:
+    - t5
+    - vae
+
+data:
+  data_dir: data/robotwin
+  num_frames: 81
+  resolution: [736, 640]
+  fps: 10
+  num_workers: 4
+  pin_memory: true
+  cfg_prob: 0.1
+
+loss:
+  type: flow_matching
+  embodiment_aware: false
+
+self_forcing:
+  enabled: false
+
+distributed:
+  use_fsdp: true
+  sharding_strategy: FULL_SHARD
+  mixed_precision: bf16
+  activation_checkpointing: true
+  cpu_offload: false
+
+logging:
+  output_dir: outputs/vidar
+  log_interval: 50
+  save_interval: 1000
+  eval_interval: 2000
+  use_wandb: true
+  wandb_project: vidar-training
+
+output:
+  save_path: checkpoints/vidar/vidar.pt
+  save_optimizer: true
+  save_scheduler: true
+
+seed: 42
