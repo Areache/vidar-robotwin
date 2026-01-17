@@ -42,7 +42,7 @@ class VideoTransform:
         if video.dim() == 4:
             # Assume (T, C, H, W)
             T, C, H, W = video.shape
-            video = video.permute(1, 0, 2, 3)  # (C, T, H, W)
+            video = video.permute(1, 0, 2, 3).contiguous()  # (C, T, H, W)
             was_tchw = True
         else:
             was_tchw = False
@@ -51,14 +51,14 @@ class VideoTransform:
 
         # Resize if needed
         if (H, W) != self.resolution:
-            video = video.view(C * T, 1, H, W)
+            video = video.reshape(C * T, 1, H, W)
             video = F.interpolate(
                 video,
                 size=self.resolution,
                 mode='bilinear',
                 align_corners=False
             )
-            video = video.view(C, T, *self.resolution)
+            video = video.reshape(C, T, *self.resolution)
 
         # Normalize to [-1, 1]
         if self.normalize:
