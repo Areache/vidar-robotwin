@@ -86,12 +86,13 @@ class WanModelCausalTrainingWrapper(nn.Module):
             from wan.configs.shared_config import wan_shared_config
             return wan_shared_config
         except ImportError:
+            # Fallback config matching Wan2.2-TI2V-5B directory structure
             return {
                 "text_len": 512,
                 "t5_dtype": torch.bfloat16,
-                "t5_checkpoint": "t5",
-                "t5_tokenizer": "tokenizer",
-                "vae_checkpoint": "vae",
+                "t5_checkpoint": "models_t5_umt5-xxl-enc-bf16.pth",
+                "t5_tokenizer": "google/umt5-xxl",
+                "vae_checkpoint": "Wan2.2_VAE.pth",
                 "vae_stride": (4, 8, 8),
                 "patch_size": (1, 2, 2),
                 "param_dtype": torch.bfloat16,
