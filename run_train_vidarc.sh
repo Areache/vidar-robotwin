@@ -3,10 +3,16 @@
 # Stage 2 Training: Vidarc Causal Fine-tuning with Self-Forcing
 # =============================================================================
 # Usage:
-#   ./run_train_vidarc.sh [DATA_DIR] [OUTPUT_DIR] [MAX_STEPS]
+#   ./run_train_vidarc.sh CONFIG DATA_DIR CKPT_DIR PT_DIR OUTPUT_DIR MAX_STEPS
 #
 # Example:
-#   ./run_train_vidarc.sh ./data/vidarc_stack_bowls ./output_vidarc 4000
+#   ./run_train_vidarc.sh \
+#       configs/vidarc_2xh200.yaml \
+#       ./data/vidarc_stack_bowls \
+#       /path/to/Wan2.2-TI2V-5B \
+#       /path/to/vidar.pt \
+#       ./output_vidarc \
+#       4000
 #
 # Environment Variables:
 #   VIDAR_ENV: Path to conda environment (default: self_forcing)
@@ -72,14 +78,13 @@ export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 echo "PYTHONPATH: $PYTHONPATH"
 
 # --- Configuration ---
-# Data paths
-DATA_DIR=${1:-"./data/vidarc_stack_bowls"}
-OUTPUT_DIR=${2:-"./output_vidarc"}
-MAX_STEPS=${3:-4000}
-
-# Model checkpoints
-CKPT_DIR=${CKPT_DIR:-"/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B"}
-PT_DIR=${PT_DIR:-"/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidar.pt"}
+# Positional arguments (matching README_train.md documentation)
+CONFIG=${1:-"configs/vidarc_2xh200.yaml"}
+DATA_DIR=${2:-"./data/vidarc_stack_bowls"}
+CKPT_DIR=${3:-"/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B"}
+PT_DIR=${4:-"/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidar.pt"}
+OUTPUT_DIR=${5:-"./output_vidarc"}
+MAX_STEPS=${6:-4000}
 
 # Training parameters
 BATCH_SIZE=${BATCH_SIZE:-2}
@@ -96,14 +101,23 @@ GPU_COUNT=$(nvidia-smi -L | wc -l)
 echo "=========================================="
 echo "Vidarc Stage 2 Training"
 echo "=========================================="
+echo "Config: $CONFIG"
 echo "Data directory: $DATA_DIR"
-echo "Output directory: $OUTPUT_DIR"
 echo "Checkpoint directory: $CKPT_DIR"
 echo "Stage 1 weights: $PT_DIR"
+echo "Output directory: $OUTPUT_DIR"
 echo "GPUs: $GPU_COUNT"
 echo "Batch size: $BATCH_SIZE x $GRADIENT_ACCUMULATION (effective: $((BATCH_SIZE * GRADIENT_ACCUMULATION * GPU_COUNT)))"
 echo "Max steps: $MAX_STEPS"
 echo "=========================================="
+
+# Check if config exists
+if [ ! -f "$CONFIG" ]; then
+    echo "ERROR: Config file not found: $CONFIG"
+    echo "Available configs:"
+    ls -la configs/*.yaml 2>/dev/null || echo "  No config files found in configs/"
+    exit 1
+fi
 
 # Check if data exists
 if [ ! -d "$DATA_DIR" ]; then
@@ -139,7 +153,7 @@ echo ""
 
 torchrun --nproc_per_node=$GPU_COUNT --master_port=$MASTER_PORT \
     scripts/train_vidarc.py \
-    --config configs/vidarc_2xh200.yaml \
+    --config "$CONFIG" \
     --data-dir "$DATA_DIR" \
     --ckpt-dir "$CKPT_DIR" \
     $PT_FLAG \
