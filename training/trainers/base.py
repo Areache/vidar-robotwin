@@ -158,24 +158,40 @@ class BaseTrainer(ABC):
     def _build_dataloader(self):
         """Build dataloader."""
         cfg = self.config.data
+        dataset_type = getattr(cfg, 'dataset_type', 'hdf5')
 
-        dataset = VidarDataset(
-            data_dir=cfg.data_dir,
-            num_frames=cfg.num_frames,
-            resolution=cfg.resolution,
-            fps=cfg.fps,
-            cfg_prob=cfg.cfg_prob,
-        )
+        if dataset_type == "hdf5":
+            from ..data.hdf5_dataset import HDF5VLADataset, get_hdf5_dataloader
+            logger.info(f"Using HDF5 dataset from {cfg.data_dir}")
+            return get_hdf5_dataloader(
+                data_dir=cfg.data_dir,
+                batch_size=self.config.training.batch_size,
+                num_frames=cfg.num_frames,
+                resolution=cfg.resolution,
+                num_workers=cfg.num_workers,
+                pin_memory=cfg.pin_memory,
+                distributed=(self.world_size > 1),
+                cfg_prob=cfg.cfg_prob,
+            )
+        else:
+            logger.info(f"Using video dataset from {cfg.data_dir}")
+            dataset = VidarDataset(
+                data_dir=cfg.data_dir,
+                num_frames=cfg.num_frames,
+                resolution=cfg.resolution,
+                fps=cfg.fps,
+                cfg_prob=cfg.cfg_prob,
+            )
 
-        dataloader = get_dataloader(
-            dataset,
-            batch_size=self.config.training.batch_size,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            distributed=(self.world_size > 1),
-        )
+            dataloader = get_dataloader(
+                dataset,
+                batch_size=self.config.training.batch_size,
+                num_workers=cfg.num_workers,
+                pin_memory=cfg.pin_memory,
+                distributed=(self.world_size > 1),
+            )
 
-        return dataloader
+            return dataloader
 
     def _build_loss(self) -> VidarLoss:
         """Build loss function."""
@@ -257,6 +273,25 @@ class BaseTrainer(ABC):
 
         logger.info(f"Starting training for {total_steps} steps...")
 
+        # Validate dataset size before training
+        dataset_size = len(self.dataloader.dataset) if hasattr(self.dataloader, 'dataset') else 0
+        batch_size = self.config.training.batch_size
+
+        if dataset_size == 0:
+            raise RuntimeError(
+                f"Dataset is empty! No episodes found in {self.config.data.data_dir}. "
+                f"Please check that HDF5 files exist in the 'hdf5/' subdirectory "
+                f"and match the pattern 'episode_*.hdf5'"
+            )
+
+        effective_batch_size = batch_size * self.world_size
+        if dataset_size < effective_batch_size:
+            logger.warning(
+                f"Dataset size ({dataset_size}) is smaller than effective batch size "
+                f"({batch_size} x {self.world_size} GPUs = {effective_batch_size}). "
+                f"Training may fail or have limited batches per epoch."
+            )
+
         self.model.train()
         data_iter = iter(self.dataloader)
 
@@ -267,7 +302,15 @@ class BaseTrainer(ABC):
             except StopIteration:
                 self.epoch += 1
                 data_iter = iter(self.dataloader)
-                batch = next(data_iter)
+                try:
+                    batch = next(data_iter)
+                except StopIteration:
+                    raise RuntimeError(
+                        f"DataLoader returned empty iterator after reset. "
+                        f"Dataset has {dataset_size} samples but batch_size={batch_size} "
+                        f"with {self.world_size} GPUs (drop_last=True). "
+                        f"Try reducing batch_size or adding more data."
+                    )
 
             # Move to device
             batch = self._to_device(batch)

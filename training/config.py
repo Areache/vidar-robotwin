@@ -52,6 +52,7 @@ class TrainingConfig:
 class DataConfig:
     """Data configuration."""
     data_dir: str = "data/robotwin"
+    dataset_type: Literal["video", "hdf5"] = "hdf5"  # Default to HDF5
     num_frames: int = 81
     resolution: tuple = (736, 640)
     fps: int = 10

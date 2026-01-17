@@ -165,15 +165,33 @@ class WanModelTrainingWrapper(nn.Module):
         """Freeze T5 and VAE if requested."""
         if self.freeze_t5:
             logger.info("Freezing T5 encoder")
-            self.t5.eval()
-            for param in self.t5.parameters():
-                param.requires_grad = False
+            # T5EncoderModel may not be a standard nn.Module
+            if hasattr(self.t5, 'eval'):
+                self.t5.eval()
+            if hasattr(self.t5, 'model') and hasattr(self.t5.model, 'eval'):
+                self.t5.model.eval()
+            # Try to freeze parameters
+            if hasattr(self.t5, 'parameters'):
+                for param in self.t5.parameters():
+                    param.requires_grad = False
+            elif hasattr(self.t5, 'model') and hasattr(self.t5.model, 'parameters'):
+                for param in self.t5.model.parameters():
+                    param.requires_grad = False
 
         if self.freeze_vae:
             logger.info("Freezing VAE")
-            self.vae.eval()
-            for param in self.vae.parameters():
-                param.requires_grad = False
+            # VAE may not be a standard nn.Module
+            if hasattr(self.vae, 'eval'):
+                self.vae.eval()
+            if hasattr(self.vae, 'model') and hasattr(self.vae.model, 'eval'):
+                self.vae.model.eval()
+            # Try to freeze parameters
+            if hasattr(self.vae, 'parameters'):
+                for param in self.vae.parameters():
+                    param.requires_grad = False
+            elif hasattr(self.vae, 'model') and hasattr(self.vae.model, 'parameters'):
+                for param in self.vae.model.parameters():
+                    param.requires_grad = False
 
     def to(self, device):
         """Move model to device."""

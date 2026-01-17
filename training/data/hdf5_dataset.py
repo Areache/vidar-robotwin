@@ -92,14 +92,26 @@ class HDF5VLADataset(Dataset):
         hdf5_dir = self.data_dir / "hdf5"
         if hdf5_dir.exists():
             search_dir = hdf5_dir
+            logger.info(f"Searching for episodes in: {hdf5_dir}")
         else:
             search_dir = self.data_dir
+            logger.info(f"No 'hdf5/' subdirectory found, searching in: {self.data_dir}")
 
         episode_files = sorted(search_dir.glob("episode_*.hdf5"))
+        logger.info(f"Found {len(episode_files)} files matching 'episode_*.hdf5'")
 
         if not episode_files:
             # Try alternative patterns
             episode_files = sorted(search_dir.glob("*.hdf5"))
+            logger.info(f"Found {len(episode_files)} files matching '*.hdf5' (fallback pattern)")
+
+        if not episode_files:
+            # Log diagnostic information
+            all_files = list(search_dir.iterdir()) if search_dir.exists() else []
+            logger.warning(
+                f"No HDF5 files found in {search_dir}! "
+                f"Directory contents: {[f.name for f in all_files[:10]]}{'...' if len(all_files) > 10 else ''}"
+            )
 
         return episode_files
 
@@ -447,11 +459,34 @@ def get_hdf5_dataloader(
         cfg_prob=cfg_prob,
     )
 
+    # Validate dataset is not empty
+    if len(dataset) == 0:
+        raise RuntimeError(
+            f"Dataset is empty! No valid episodes found in {data_dir}. "
+            f"Expected HDF5 files matching 'episode_*.hdf5' in '{data_dir}/hdf5/' directory. "
+            f"Please verify your data preparation step completed successfully."
+        )
+
     sampler = None
     shuffle = True
+    world_size = 1
+
     if distributed:
+        import torch.distributed as dist
+        if dist.is_initialized():
+            world_size = dist.get_world_size()
         sampler = DistributedSampler(dataset, shuffle=True)
         shuffle = False
+
+    # Auto-disable drop_last if dataset is too small to form complete batches
+    effective_batch_size = batch_size * world_size
+    actual_drop_last = drop_last
+    if len(dataset) < effective_batch_size:
+        actual_drop_last = False
+        logger.warning(
+            f"Dataset size ({len(dataset)}) < batch_size * world_size ({effective_batch_size}). "
+            f"Disabling drop_last to allow training with incomplete batches."
+        )
 
     return DataLoader(
         dataset,
@@ -460,7 +495,7 @@ def get_hdf5_dataloader(
         num_workers=num_workers,
         pin_memory=pin_memory,
         sampler=sampler,
-        drop_last=drop_last,
+        drop_last=actual_drop_last,
         collate_fn=hdf5_collate_fn,
     )
 
