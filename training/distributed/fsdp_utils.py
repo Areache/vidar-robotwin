@@ -32,6 +32,10 @@ def init_distributed():
     return local_rank
 
 
+# Alias for compatibility
+setup_distributed = init_distributed
+
+
 def cleanup_distributed():
     """Cleanup distributed training environment."""
     if dist.is_initialized():

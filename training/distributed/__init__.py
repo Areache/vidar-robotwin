@@ -2,6 +2,7 @@
 
 from .fsdp_utils import (
     init_distributed,
+    setup_distributed,  # Alias for init_distributed
     cleanup_distributed,
     get_rank,
     get_world_size,
@@ -20,6 +21,7 @@ from .fsdp_utils import (
 
 __all__ = [
     "init_distributed",
+    "setup_distributed",
     "cleanup_distributed",
     "get_rank",
     "get_world_size",
