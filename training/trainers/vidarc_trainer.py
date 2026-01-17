@@ -127,7 +127,8 @@ class VidarCausalTrainer(BaseTrainer):
             # Move VAE to GPU if enough memory
             if free_mem > 10 * 1024**3:
                 logger.info("Moving VAE to GPU for faster encoding")
-                self.wrapper.vae = self.wrapper.vae.to(self.device)
+                self.wrapper.vae.model = self.wrapper.vae.model.to(self.device)
+                self.wrapper.vae.device = self.device
 
     def _build_optimizer(self):
         """Build optimizer for DiT parameters only."""
@@ -229,7 +230,7 @@ class VidarCausalTrainer(BaseTrainer):
     def _encode_video(self, video: torch.Tensor) -> torch.Tensor:
         """Encode video to latent space."""
         video_device = video.device
-        vae_device = next(self.wrapper.vae.parameters()).device
+        vae_device = next(self.wrapper.vae.model.parameters()).device
 
         if video_device != vae_device:
             video = video.to(vae_device)
