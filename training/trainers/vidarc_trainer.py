@@ -35,12 +35,12 @@ class VidarCausalTrainer(BaseTrainer):
         self.wrapper: Optional[WanModelCausalTrainingWrapper] = None
 
         # Self-Forcing parameters
-        self.chunk_size = config.model.get("chunk_size", 16)
-        self.same_t_across_chunks = config.model.get("same_t_across_chunks", True)
+        self.chunk_size = getattr(config.model, "chunk_size", 16)
+        self.same_t_across_chunks = getattr(config.model, "same_t_across_chunks", True)
 
         # Embodiment-aware loss parameters
-        self.eta = config.training.get("eta", 3.0)  # Embodiment weight
-        self.use_embodiment_loss = config.training.get("use_embodiment_loss", False)
+        self.eta = getattr(config.training, "eta", 3.0)  # Embodiment weight
+        self.use_embodiment_loss = getattr(config.training, "use_embodiment_loss", False)
 
     def _build_model(self) -> nn.Module:
         """Build WanModelCausal training wrapper."""

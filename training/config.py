@@ -13,6 +13,8 @@ class ModelConfig:
     pt_dir: Optional[str] = None
     model_class: Literal["WanModel", "WanModelCausal"] = "WanModel"
     gradient_checkpointing: bool = True
+    chunk_size: int = 16  # For Self-Forcing training
+    same_t_across_chunks: bool = True  # Use same timestep across all chunks
 
 
 @dataclass
@@ -21,6 +23,7 @@ class TrainingConfig:
     num_steps: int = 14000
     batch_size: int = 128
     gradient_accumulation: int = 1
+    gradient_accumulation_steps: int = 1  # Alias for gradient_accumulation
 
     # Optimizer
     lr: float = 2e-5
@@ -35,6 +38,10 @@ class TrainingConfig:
 
     # Freezing
     freeze: List[str] = field(default_factory=lambda: ["t5", "vae"])
+
+    # Embodiment-aware loss (Stage 2)
+    eta: float = 3.0
+    use_embodiment_loss: bool = False
 
     # Debug
     debug: bool = False
@@ -103,9 +110,12 @@ class LoggingConfig:
 @dataclass
 class OutputConfig:
     """Output configuration."""
+    output_dir: str = "outputs/vidar"
     save_path: str = "checkpoints/vidar/vidar.pt"
     save_optimizer: bool = True
     save_scheduler: bool = True
+    log_interval: int = 50
+    save_interval: int = 1000
 
 
 @dataclass
@@ -156,6 +166,10 @@ class VidarConfig:
         with open(path, "w") as f:
             yaml.dump(self.to_dict(), f, default_flow_style=False)
 
+    def save(self, path: str):
+        """Alias for save_yaml."""
+        self.save_yaml(path)
+
 
 # Preset configs for 2xH200
 def get_2xh200_config() -> VidarConfig:
@@ -196,3 +210,16 @@ def get_vidarc_stage2_config() -> VidarConfig:
     config.self_forcing.chunk_size = 16
     config.output.save_path = "checkpoints/vidar/vidarc.pt"
     return config
+
+
+def load_config(path: str) -> VidarConfig:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        path: Path to YAML config file
+
+    Returns:
+        VidarConfig instance
+    """
+    return VidarConfig.from_yaml(path)
