@@ -5,6 +5,10 @@ Implements Self-Forcing training with:
 - Autoregressive rollout during training
 - Re-prefilling mechanism
 - Embodiment-aware loss support
+
+IMPORTANT: PYTHONPATH must include the vidar directory with wan modules.
+Set via run_train_vidarc.sh or manually:
+    export PYTHONPATH=/path/to/vidar:$PYTHONPATH
 """
 
 import os
@@ -14,13 +18,17 @@ from typing import Optional, List, Dict, Any, Tuple
 import torch
 import torch.nn as nn
 
-# Import from vidar codebase
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'vidar'))
-
-from wan.modules.model_causal import WanModelCausal, WanAttentionBlock
-from wan.modules.vae2_2 import Wan2_2_VAE
-from wan.modules.t5 import T5EncoderModel
+# Import from wan modules
+# Try direct import from modules (if PYTHONPATH includes vidar/wan)
+# Otherwise fall back to wan.modules (if PYTHONPATH includes vidar)
+try:
+    from modules.model_causal import WanModelCausal, WanAttentionBlock
+    from modules.vae2_2 import Wan2_2_VAE
+    from modules.t5 import T5EncoderModel
+except ImportError:
+    from wan.modules.model_causal import WanModelCausal, WanAttentionBlock
+    from wan.modules.vae2_2 import Wan2_2_VAE
+    from wan.modules.t5 import T5EncoderModel
 
 logger = logging.getLogger(__name__)
 
