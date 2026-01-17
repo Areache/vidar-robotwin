@@ -18,17 +18,11 @@ from typing import Optional, List, Dict, Any, Tuple
 import torch
 import torch.nn as nn
 
-# Import from wan modules
-# Try direct import from modules (if PYTHONPATH includes vidar/wan)
-# Otherwise fall back to wan.modules (if PYTHONPATH includes vidar)
-try:
-    from modules.model_causal import WanModelCausal, WanAttentionBlock
-    from modules.vae2_2 import Wan2_2_VAE
-    from modules.t5 import T5EncoderModel
-except ImportError:
-    from wan.modules.model_causal import WanModelCausal, WanAttentionBlock
-    from wan.modules.vae2_2 import Wan2_2_VAE
-    from wan.modules.t5 import T5EncoderModel
+# Import from wan modules (same as causal_worker.py)
+# Requires PYTHONPATH to include vidar directory
+from wan.modules.model_causal import WanModelCausal, WanAttentionBlock
+from wan.modules.vae2_2 import Wan2_2_VAE
+from wan.modules.t5 import T5EncoderModel
 
 logger = logging.getLogger(__name__)
 

@@ -7,50 +7,69 @@
 #
 # Example:
 #   ./run_train_vidarc.sh ./data/vidarc_stack_bowls ./output_vidarc 4000
+#
+# Environment Variables:
+#   VIDAR_ENV: Path to conda environment (default: self_forcing)
+#   VIDAR_PATH: Path to vidar codebase (for wan modules)
 # =============================================================================
 
 # --- Environment Setup ---
-# Activate conda environment (same as eval script)
-conda activate /mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/RoboTwin-hb
+# Use self_forcing environment (same as vidar server during inference)
+# NOT RoboTwin-hb which is for simulation only
+VIDAR_ENV=${VIDAR_ENV:-"/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/self_forcing"}
 
-# Set library paths
+# Alternative environments (uncomment to use):
+# VIDAR_ENV="/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/vidar"
+
+echo "Activating conda environment: $VIDAR_ENV"
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "$VIDAR_ENV"
+
+# Verify activation
+if [ "$CONDA_PREFIX" != "$VIDAR_ENV" ]; then
+    echo "ERROR: Failed to activate conda environment: $VIDAR_ENV"
+    echo "Current CONDA_PREFIX: $CONDA_PREFIX"
+    exit 1
+fi
+
+# Set library paths (optional, for mujoco if needed)
 export LD_LIBRARY_PATH=/root/.mujoco/mujoco210/bin:$LD_LIBRARY_PATH
 
 # --- PYTHONPATH Setup ---
 # Add vidar codebase to PYTHONPATH (for wan modules)
+# NOTE: causal_worker.py does "import wan", so PYTHONPATH must include vidar dir
+#       The self_forcing env should have easydict installed
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Priority order for vidar paths:
-# 1. VIDAR_PATH environment variable (user override)
-# 2. Shared storage vidar/wan (direct modules import, avoids easydict dependency)
-# 3. Shared storage vidar (full path)
-# 4. Local vidar/wan
-# 5. Local vidar
+# Vidar paths
 VIDAR_LOCAL="$(dirname "$SCRIPT_DIR")/vidar"
 VIDAR_SHARED="/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar"
 
+# Priority order:
+# 1. VIDAR_PATH environment variable (user override)
+# 2. Shared storage vidar (same as inference causal_worker)
+# 3. Local vidar
 if [ -n "$VIDAR_PATH" ]; then
     export PYTHONPATH="$VIDAR_PATH:$PYTHONPATH"
     echo "Using VIDAR_PATH: $VIDAR_PATH"
-elif [ -d "$VIDAR_SHARED/wan/modules" ]; then
-    # Use vidar/wan path to avoid wan/__init__.py importing configs with easydict
-    export PYTHONPATH="$VIDAR_SHARED/wan:$PYTHONPATH"
-    echo "Using shared storage vidar/wan: $VIDAR_SHARED/wan"
-elif [ -d "$VIDAR_LOCAL/wan/modules" ]; then
-    export PYTHONPATH="$VIDAR_LOCAL/wan:$PYTHONPATH"
-    echo "Using local vidar/wan: $VIDAR_LOCAL/wan"
+elif [ -d "$VIDAR_SHARED/wan" ]; then
+    export PYTHONPATH="$VIDAR_SHARED:$PYTHONPATH"
+    echo "Using shared storage vidar: $VIDAR_SHARED"
+elif [ -d "$VIDAR_LOCAL/wan" ]; then
+    export PYTHONPATH="$VIDAR_LOCAL:$PYTHONPATH"
+    echo "Using local vidar: $VIDAR_LOCAL"
 else
     echo "ERROR: vidar codebase not found!"
     echo "  Set VIDAR_PATH environment variable or check these paths:"
-    echo "  - $VIDAR_SHARED/wan"
-    echo "  - $VIDAR_LOCAL/wan"
-    echo ""
-    echo "  Or install easydict: pip install easydict"
+    echo "  - $VIDAR_SHARED"
+    echo "  - $VIDAR_LOCAL"
     exit 1
 fi
 
 # Add vidar-robotwin to PYTHONPATH
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
+
+echo "PYTHONPATH: $PYTHONPATH"
 
 # --- Configuration ---
 # Data paths
