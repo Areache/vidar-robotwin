@@ -176,14 +176,14 @@ class WanModelCausalTrainingWrapper(nn.Module):
         """Freeze T5 and VAE if requested."""
         if self.freeze_t5:
             logger.info("Freezing T5 encoder")
-            self.t5.eval()
-            for param in self.t5.parameters():
+            self.t5.model.eval()
+            for param in self.t5.model.parameters():
                 param.requires_grad = False
 
         if self.freeze_vae:
             logger.info("Freezing VAE")
-            self.vae.eval()
-            for param in self.vae.parameters():
+            self.vae.model.eval()
+            for param in self.vae.model.parameters():
                 param.requires_grad = False
 
     def to(self, device):
@@ -191,15 +191,21 @@ class WanModelCausalTrainingWrapper(nn.Module):
         self.device = device
         self.dit = self.dit.to(device)
         if not self.freeze_t5:
-            self.t5 = self.t5.to(device)
+            self.t5.model = self.t5.model.to(device)
+            self.t5.device = device
         if not self.freeze_vae:
-            self.vae = self.vae.to(device)
+            self.vae.model = self.vae.model.to(device)
+            self.vae.device = device
         return self
 
-    def encode_text(self, text: List[str]) -> torch.Tensor:
-        """Encode text using T5."""
+    def encode_text(self, text: List[str]) -> list:
+        """Encode text using T5.
+        
+        Returns:
+            List of context tensors (one per text), as returned by T5EncoderModel.
+        """
         with torch.no_grad():
-            context = self.t5(text)
+            context = self.t5(text, self.device)
         return context
 
     def encode_video(self, video: torch.Tensor) -> torch.Tensor:
@@ -290,7 +296,7 @@ class WanModelCausalTrainingWrapper(nn.Module):
         self,
         x_clean: torch.Tensor,
         t: torch.Tensor,
-        context: torch.Tensor,
+        context,  # Can be torch.Tensor or List[torch.Tensor]
         chunk_size: int = 16,
         same_t_across_chunks: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
