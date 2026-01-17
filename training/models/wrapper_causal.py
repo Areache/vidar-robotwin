@@ -392,6 +392,8 @@ class WanModelCausalTrainingWrapper(nn.Module):
                 chunk_prefill = True
 
             # Forward pass
+            # For prefill (first chunk), don't use block_idx - rope_apply_one expects single-frame input with block_idx
+            # For chunk_prefill (subsequent chunks), block_idx is not used (rope_apply_chunk uses kv_num_block instead)
             v_pred = self.forward_causal(
                 x=x_noised,
                 t=t_chunk,
@@ -400,7 +402,7 @@ class WanModelCausalTrainingWrapper(nn.Module):
                 use_cache=True,
                 prefill=prefill,
                 chunk_prefill=chunk_prefill,
-                block_idx=chunk_idx,
+                block_idx=None if prefill else chunk_idx,
             )
 
             all_v_pred.append(v_pred)
