@@ -228,14 +228,28 @@ class VidarCausalTrainer(BaseTrainer):
         return loss
 
     def _encode_video(self, video: torch.Tensor) -> torch.Tensor:
-        """Encode video to latent space."""
+        """Encode video to latent space.
+
+        The Wan2_2_VAE.encode() expects a list of videos (one per batch item),
+        not a batched tensor. Each video should be (C, T, H, W).
+        """
         video_device = video.device
         vae_device = next(self.wrapper.vae.model.parameters()).device
 
         if video_device != vae_device:
             video = video.to(vae_device)
 
-        latent = self.wrapper.vae.encode(video)
+        # VAE expects list of videos, not batched tensor
+        # video shape: (B, C, T, H, W) -> list of (C, T, H, W)
+        video_list = [video[i] for i in range(video.shape[0])]
+
+        latent_list = self.wrapper.vae.encode(video_list)
+
+        if latent_list is None:
+            raise RuntimeError("VAE encoding failed - check video format and VAE device")
+
+        # Stack back to batch: list of (C, T', H', W') -> (B, C, T', H', W')
+        latent = torch.stack(latent_list, dim=0)
 
         if latent.device != video_device:
             latent = latent.to(video_device)
