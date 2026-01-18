@@ -23,6 +23,10 @@ import torch.nn as nn
 from wan.modules.model_causal import WanModelCausal, WanAttentionBlock
 from wan.modules.vae2_2 import Wan2_2_VAE
 from wan.modules.t5 import T5EncoderModel
+from wan.modules.block_attention import (
+    get_flex_causal_block_mask_for_prefill,
+    get_flex_block_mask_chunk_prefill,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -425,14 +429,15 @@ class WanModelCausalTrainingWrapper(nn.Module):
         shape: Tuple[int, ...],
         block_size: int,
         device: torch.device,
-    ) -> torch.Tensor:
-        """Build causal attention mask for first chunk."""
+    ):
+        """Build causal attention BlockMask for first chunk (prefill)."""
         B, C, T, H, W = shape
-        seq_len = T * block_size
-
-        # Causal mask: can attend to current and previous positions
-        mask = torch.tril(torch.ones(seq_len, seq_len, device=device))
-        return mask
+        # Use proper BlockMask for flex_attention compatibility
+        return get_flex_causal_block_mask_for_prefill(
+            num_denoise_block=T,
+            block_size=block_size,
+            device=device,
+        )
 
     def _build_chunk_causal_mask(
         self,
@@ -440,18 +445,17 @@ class WanModelCausalTrainingWrapper(nn.Module):
         block_size: int,
         kv_len: int,
         device: torch.device,
-    ) -> torch.Tensor:
-        """Build attention mask for subsequent chunks with KV cache."""
+    ):
+        """Build attention BlockMask for subsequent chunks with KV cache."""
         B, C, T, H, W = shape
-        q_len = T * block_size
-        total_kv_len = kv_len + q_len
-
-        # Can attend to all cached KV + causal within current chunk
-        mask = torch.zeros(q_len, total_kv_len, device=device)
-        mask[:, :kv_len] = 1  # Attend to all cached
-        mask[:, kv_len:] = torch.tril(torch.ones(q_len, q_len, device=device))
-
-        return mask
+        num_kv_blocks = kv_len // block_size
+        # Use proper BlockMask for flex_attention compatibility
+        return get_flex_block_mask_chunk_prefill(
+            num_qblock=T,
+            num_kvblock=num_kv_blocks,
+            block_size=block_size,
+            device=device,
+        )
 
     def forward(
         self,
