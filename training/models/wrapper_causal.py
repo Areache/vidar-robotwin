@@ -374,8 +374,8 @@ class WanModelCausalTrainingWrapper(nn.Module):
             # Create noised chunk: x_t = t * x_1 + (1-t) * x_0
             x_noised = t_expanded * x_chunk + (1 - t_expanded) * x0_chunk
 
-            # Target velocity: x_0 - x_1
-            v_target = x0_chunk - x_chunk
+            #!!! Target velocity
+            v_target = x_chunk - x0_chunk
 
             # Build causal attention mask
             if chunk_idx == 0:
@@ -398,9 +398,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
             # Forward pass
             # For prefill (first chunk), don't use block_idx - rope_apply_one expects single-frame input with block_idx
             # For chunk_prefill (subsequent chunks), block_idx is not used (rope_apply_chunk uses kv_num_block instead)
+            # Scale timestep for model input: model expects t in [0, 1000]
+            t_model = t_chunk * 1000.0
             v_pred = self.forward_causal(
                 x=x_noised,
-                t=t_chunk,
+                t=t_model,
                 context=context,
                 attention_mask=attention_mask,
                 use_cache=True,
@@ -465,16 +467,29 @@ class WanModelCausalTrainingWrapper(nn.Module):
         seq_len: Optional[int] = None,
     ) -> torch.Tensor:
         """
-        Standard forward pass (non-causal, for compatibility).
+        Standard forward pass for training (non-self-forcing mode).
 
-        For causal training, use forward_self_forcing instead.
+        Uses prefill mode with causal attention mask to ensure correct
+        positional encoding for each frame. This matches how the eval
+        pipeline processes conditional frames.
+
+        Key: prefill=True ensures each frame gets correct RoPE position
+        (frame 0 -> pos 0, frame 1 -> pos 1, etc.) instead of all frames
+        getting position 0 when prefill=False and block_idx=None.
         """
+        B, C, T, H, W = x.shape
+        block_size = self.get_block_size(x.shape)
+
+        # Build causal attention mask for all frames (prefill mode)
+        attention_mask = self._build_causal_mask(x.shape, block_size, x.device)
+
         return self.forward_causal(
             x=x,
             t=t,
             context=context,
+            attention_mask=attention_mask,
             use_cache=False,
-            prefill=False,
+            prefill=True,  # Correct positional encoding for each frame
         )
 
     def get_trainable_parameters(self) -> List[nn.Parameter]:

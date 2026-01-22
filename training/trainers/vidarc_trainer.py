@@ -25,9 +25,10 @@ class VidarCausalTrainer(BaseTrainer):
     - Embodiment-aware loss with higher weight on robot regions
 
     Loss function (with embodiment-aware weighting):
-    L = ||(1 + η·U(x_1)) ⊙ (v_θ(x_t, t, c) - (x_0 - x_1))||²
+    L = ||(1 + η·U(x_1)) ⊙ (v_θ(x_t, t, c) - (x_1 - x_0))||²
 
     where U(x_1) indicates robot/embodiment regions (η=3.0 default).
+    Note: v = x_1 - x_0 (clean - noise), consistent with flow matching convention.
     """
 
     def __init__(self, config: VidarConfig):
@@ -41,6 +42,11 @@ class VidarCausalTrainer(BaseTrainer):
         # Embodiment-aware loss parameters
         self.eta = getattr(config.training, "eta", 3.0)  # Embodiment weight
         self.use_embodiment_loss = getattr(config.training, "use_embodiment_loss", False)
+
+        # Training mode: Self-Forcing (True) or Standard (False)
+        # Set use_self_forcing=False to enable activation_checkpointing
+        self.use_self_forcing = getattr(config.self_forcing, "enabled", True)
+        logger.info(f"Training mode: {'Self-Forcing' if self.use_self_forcing else 'Standard (no SF)'}")
 
     def _build_model(self) -> nn.Module:
         """Build WanModelCausal training wrapper."""
@@ -149,13 +155,26 @@ class VidarCausalTrainer(BaseTrainer):
 
     def train_step(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
-        Single training step with Self-Forcing.
+        Single training step - routes to Self-Forcing or Standard based on config.
 
         Args:
             batch: Dict with 'video' (B, T, C, H, W) and 'instruction' (List[str])
 
         Returns:
             Dict with 'loss' tensor and optional metrics
+        """
+        # Route to appropriate training method
+        if self.use_self_forcing:
+            return self.train_step_self_forcing(batch)
+        else:
+            return self.train_step_standard(batch)
+
+    def train_step_self_forcing(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        """
+        Training step with Self-Forcing (original method).
+
+        Note: This method is NOT compatible with activation_checkpointing
+        due to KV cache accumulation.
         """
         video = batch["video"]  # (B, T, C, H, W)
         instructions = batch["instruction"]  # List[str]
@@ -259,7 +278,14 @@ class VidarCausalTrainer(BaseTrainer):
     def _encode_text(self, instructions: list) -> torch.Tensor:
         """Encode text instructions."""
         context = self.wrapper.encode_text(instructions)
-        return context.to(self.device)
+        # Handle list type (WanModelCausalTrainingWrapper returns list of tensors)
+        if isinstance(context, list):
+            # Stack list of tensors into single tensor (B, L, D)
+            context = torch.stack([c.to(self.device) for c in context])
+        else:
+            # Already a tensor, just move to device
+            context = context.to(self.device)
+        return context
 
     def train_step_standard(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
@@ -281,20 +307,27 @@ class VidarCausalTrainer(BaseTrainer):
             context = self._encode_text(instructions)
 
         # Sample timesteps and noise
+        # t is in [0, 1] for interpolation formula
         t = sample_timestep(B, self.device)
         x0 = torch.randn_like(x1)
 
-        # Add noise
+        # Add noise: x_t = t*x1 + (1-t)*x0
+        # t in [0, 1]: t=0 -> pure noise, t=1 -> clean
         t_expanded = t
         while t_expanded.dim() < x1.dim():
             t_expanded = t_expanded.unsqueeze(-1)
         x_t = t_expanded * x1 + (1 - t_expanded) * x0
 
-        # Target velocity
-        v_target = x0 - x1
+        # Target velocity: v = x1 - x0 (clean - noise)
+        # Flow: x_t = t*x1 + (1-t)*x0, so dx/dt = x1 - x0
+        v_target = x1 - x0
+
+        # Scale timestep for model input: model expects t in [0, 1000]
+        # The sinusoidal time embedding was trained with this scale
+        t_model = t * 1000.0
 
         # Forward through DiT
-        v_pred = self.wrapper(x_t, t, context)
+        v_pred = self.wrapper(x_t, t_model, context)
 
         # Loss
         loss = torch.nn.functional.mse_loss(v_pred, v_target)
@@ -304,32 +337,64 @@ class VidarCausalTrainer(BaseTrainer):
     def save_checkpoint(self, path: Optional[str] = None):
         """Save checkpoint (DiT weights only)."""
         from ..distributed.fsdp_utils import is_main_process
-
-        if not is_main_process():
-            return
+        # Torch 2.x exports FSDP as FullyShardedDataParallel; keep alias for compatibility
+        try:
+            from torch.distributed.fsdp import (
+                FullyShardedDataParallel as FSDP,
+                FullStateDictConfig,
+                StateDictType,
+            )
+        except ImportError:
+            # Fallback for older torch where FSDP may not be present
+            FSDP = None
+            FullStateDictConfig = None
+            StateDictType = None
 
         path = path or self.config.output.save_path
         from pathlib import Path
         Path(path).parent.mkdir(parents=True, exist_ok=True)
 
-        dit_state = self.wrapper.get_dit_state_dict()
+        # Collect FSDP state dict properly (if FSDP is available and model is wrapped)
+        if FSDP is not None and isinstance(self.model, FSDP):
+            full_state_dict_config = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
 
-        checkpoint = {
-            "model": dit_state,
-            "step": self.global_step,
-            "epoch": self.epoch,
-            "config": self.config.to_dict(),
-            "stage": 2,  # Mark as Stage 2 checkpoint
-        }
+            with FSDP.state_dict_type(
+                self.model,
+                StateDictType.FULL_STATE_DICT,
+                full_state_dict_config,
+            ):
+                dit_state = self.model.state_dict()
+        else:
+            # Fallback: standard state_dict
+            dit_state = self.model.state_dict()
 
-        if self.config.output.save_optimizer:
-            checkpoint["optimizer"] = self.optimizer.state_dict()
+        # Convert fp32 weights to bf16 to match evaluation expectations
+        # FSDP saves in fp32 even with bf16 mixed precision, causing dtype mismatch
+        fp32_count = 0
+        for key in dit_state:
+            if dit_state[key].dtype == torch.float32:
+                dit_state[key] = dit_state[key].to(torch.bfloat16)
+                fp32_count += 1
+        if fp32_count > 0:
+            logger.info(f"Converted {fp32_count} parameters from fp32 to bf16 for checkpoint compatibility")
 
-        if self.config.output.save_scheduler:
-            checkpoint["scheduler"] = self.scheduler.state_dict()
+        if is_main_process():
+            checkpoint = {
+                "model": dit_state,
+                "step": self.global_step,
+                "epoch": self.epoch,
+                "config": self.config.to_dict(),
+                "stage": 2,  # Mark as Stage 2 checkpoint
+            }
 
-        torch.save(checkpoint, path)
-        logger.info(f"Saved Stage 2 checkpoint to {path}")
+            if self.config.output.save_optimizer:
+                checkpoint["optimizer"] = self.optimizer.state_dict()
+
+            if self.config.output.save_scheduler:
+                checkpoint["scheduler"] = self.scheduler.state_dict()
+
+            torch.save(checkpoint, path)
+            logger.info(f"Saved Stage 2 checkpoint to {path}")
 
     def load_checkpoint(self, path: str, load_optimizer: bool = True):
         """Load checkpoint."""
@@ -349,6 +414,85 @@ class VidarCausalTrainer(BaseTrainer):
             self.scheduler.load_state_dict(checkpoint["scheduler"])
 
         logger.info(f"Loaded checkpoint at step {self.global_step}")
+
+    def evaluate_checkpoint(self, checkpoint_path: str = None):
+        """
+        Run evaluation on the saved checkpoint.
+
+        This method runs the evaluation script after checkpoint saving.
+        Configured via config.evaluation settings.
+        """
+        import subprocess
+        import os
+        from ..distributed.fsdp_utils import is_main_process
+
+        if not is_main_process():
+            return
+
+        # Get evaluation config from YAML config
+        eval_cfg = self.config.evaluation
+
+        # Check if evaluation is enabled
+        if not eval_cfg.enabled or not eval_cfg.run_after_save:
+            logger.info("Post-save evaluation disabled. Set evaluation.enabled and evaluation.run_after_save to true in config.")
+            return
+
+        checkpoint_path = checkpoint_path or self.config.output.save_path
+
+        # Get prefix (use step number if not specified)
+        prefix = eval_cfg.prefix if eval_cfg.prefix else f"step_{self.global_step}"
+
+        logger.info(f"========================================")
+        logger.info(f"Running evaluation on checkpoint: {checkpoint_path}")
+        logger.info(f"Task: {eval_cfg.task_name}")
+        logger.info(f"Config: {eval_cfg.task_config}")
+        logger.info(f"========================================")
+
+        # Build evaluation command
+        script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        eval_script = os.path.join(script_dir, "run_eval_ddp_causal.sh")
+
+        if not os.path.exists(eval_script):
+            logger.warning(f"Evaluation script not found: {eval_script}")
+            return
+
+        # Construct command using config values
+        cmd = [
+            "bash", eval_script,
+            eval_cfg.task_config,
+            checkpoint_path,
+            eval_cfg.idm_path,
+            prefix,
+            str(eval_cfg.num_new_frames),
+            str(eval_cfg.num_sampling_steps),
+            str(eval_cfg.cfg_scale),
+        ]
+
+        # Set environment for evaluation
+        env = os.environ.copy()
+        env["TASK_NAME"] = eval_cfg.task_name
+
+        try:
+            logger.info(f"Evaluation command: TASK_NAME={eval_cfg.task_name} {' '.join(cmd)}")
+            result = subprocess.run(
+                cmd,
+                env=env,
+                cwd=script_dir,
+                capture_output=False,  # Show output in real-time
+                text=True,
+            )
+
+            if result.returncode == 0:
+                logger.info(f"Evaluation completed successfully!")
+            else:
+                logger.warning(f"Evaluation failed with return code: {result.returncode}")
+
+        except Exception as e:
+            logger.error(f"Failed to run evaluation: {e}")
+
+        logger.info(f"========================================")
+        logger.info(f"Resuming training...")
+        logger.info(f"========================================")
 
 
 def create_vidarc_trainer(config: VidarConfig) -> VidarCausalTrainer:
