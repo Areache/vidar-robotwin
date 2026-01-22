@@ -551,6 +551,205 @@ python scripts/prepare_rdt_data.py \
 
 ---
 
+---
+
+## Experimental Progress
+
+### 1. GT Keyframe Subgoal Experiment
+
+**Goal**: Replace model-generated subgoals with ground truth keyframes to evaluate policy performance with "perfect" visual guidance, without finetuning or disrupting the causal generation structure.
+
+#### Keyframe Extraction Sources
+
+| Source | Path | Format | Use Case |
+|--------|------|--------|----------|
+| **Eval Videos** | `eval_result/ar/ddp_causal/{task}/episode{N}.mp4` | 640x736, ~10 FPS, H.264 | Quick extraction from successful demos |
+| **HDF5 Data** | `datasets/robotwin/processed/hdf5/episode_*.hdf5` | `observations/unified_image: (T, 720, 640, 3)` | With action data for gripper-state keyframes |
+
+#### Extraction Strategies
+
+```python
+# 1. Uniform sampling (simple)
+def extract_keyframes_uniform(video_path, interval=8, max_keyframes=20):
+    """Extract keyframes at fixed intervals."""
+    pass
+
+# 2. Visual change detection (adaptive)
+def extract_keyframes_visual_change(video_path, threshold=0.05, min_interval=4):
+    """Extract keyframes when visual difference exceeds threshold."""
+    pass
+
+# 3. Gripper-state based (from HDF5 with action data)
+def extract_keyframes_gripper(hdf5_path, gripper_indices=[6, 13]):
+    """Extract keyframes at gripper open/close transitions."""
+    pass
+```
+
+#### Integration with Vidar (Guidance to Diffusion)
+
+Subgoals are passed via `subgoal_frames` parameter, **separate from causal attention chain**:
+
+```python
+# In policy/AR/ar.py get_actions() - Lines 1276-1293
+data = {
+    "prompt": self.prompt,
+    "imgs": obs_cache,                    # Conditional frames (causal chain)
+    "num_conditional_frames": ...,
+    "num_new_frames": ...,
+    "subgoal_frames": subgoal_frames,     # SEPARATE - guidance only
+    ...
+}
+```
+
+In Vidar server (`textimage2video_causal_server.py`):
+- `subgoal_frames` are VAE-encoded independently
+- Applied as guidance via `subgoal_guidance_scale` (default 0.5)
+- Does **NOT** modify the causal attention/KV cache mechanism
+
+#### File Structure
+
+```
+vidar-robotwin/experiments/gt_keyframe_test/
+├── README.md                     # Documentation
+├── extract_keyframes.py          # Keyframe extraction utilities
+├── run_with_gt_subgoals.py       # Test script using GT keyframes
+└── config.yml                    # Configuration
+```
+
+#### Key Files Reference
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `policy/AR/ar.py` | 1250-1293 | Subgoal selection and passing to server |
+| `policy/AR/ar.py` | 130-134 | Subgoal config (interval, use_libero_subgoal) |
+| `vidar/wan/textimage2video_causal_server.py` | 353-497 | Subgoal processing (separate from causal) |
+| `vidar/server/causal_worker.py` | 126-186 | Request handling with subgoal_frames |
+
+---
+
+### 2. Training Pipeline Implementation
+
+#### Training Modes
+
+The training pipeline supports two modes controlled by `self_forcing.enabled` in config:
+
+| Mode | Config | Method | KV Cache | Activation Checkpointing |
+|------|--------|--------|----------|--------------------------|
+| **Self-Forcing** | `enabled: true` | `train_step_self_forcing()` | ✅ Yes | ❌ Not compatible |
+| **Standard** | `enabled: false` | `train_step_standard()` | ❌ No | ✅ Compatible |
+
+```yaml
+# configs/vidarc_2xh200_no_sf.yaml
+self_forcing:
+  enabled: false              # Use standard training
+  causal: true
+  chunk_size: 1
+  kv_cache_length: 64
+
+distributed:
+  activation_checkpointing: true  # Only works with self_forcing: false
+```
+
+#### Training Pipeline Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      train_step() Router                        │
+├─────────────────────────────────────────────────────────────────┤
+│  if self.use_self_forcing:                                      │
+│      return train_step_self_forcing(batch)                      │
+│  else:                                                          │
+│      return train_step_standard(batch)                          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+┌─────────────────────────┐     ┌─────────────────────────┐
+│  Self-Forcing Training  │     │   Standard Training     │
+├─────────────────────────┤     ├─────────────────────────┤
+│ • Chunk-wise processing │     │ • All frames together   │
+│ • KV cache accumulation │     │ • No KV cache           │
+│ • Causal attention      │     │ • Standard flow match   │
+│ • Teacher forcing       │     │ • activation_ckpt OK    │
+└─────────────────────────┘     └─────────────────────────┘
+```
+
+#### Checkpoint Compatibility
+
+Training saves checkpoints in **bf16** format to match evaluation:
+
+```python
+# vidarc_trainer.py save_checkpoint()
+# Convert fp32 weights to bf16 (FSDP saves fp32 even with bf16 mixed precision)
+for key in dit_state:
+    if dit_state[key].dtype == torch.float32:
+        dit_state[key] = dit_state[key].to(torch.bfloat16)
+```
+
+Evaluation loads both formats:
+```python
+# textimage2video_causal.py
+loaded = torch.load(pt_dir, map_location='cpu')
+if isinstance(loaded, dict) and "model" in loaded:
+    state_dict = loaded["model"]  # Training format: {"model": state_dict}
+else:
+    state_dict = loaded           # Original format: direct state_dict
+```
+
+#### Post-Training Evaluation (Config-based)
+
+Evaluation is configured in YAML config (not environment variables):
+
+```yaml
+# configs/vidarc_2xh200_no_sf.yaml
+evaluation:
+  enabled: true                 # Enable evaluation
+  run_after_save: true          # Run eval after each checkpoint save
+  task_name: adjust_bottle      # Task name
+  task_config: hd_clean         # Task config
+  idm_path: /path/to/idm.pt     # IDM model path
+  num_new_frames: 16            # Frames to generate
+  num_sampling_steps: 10        # Sampling steps
+  cfg_scale: 3.0                # CFG scale
+  prefix: ""                    # Output prefix (empty = step_<N>)
+```
+
+#### Launch Commands
+
+```bash
+# Standard training (no self-forcing, with activation checkpointing)
+./run_train_vidarc.sh \
+    configs/vidarc_2xh200_no_sf.yaml \
+    ./data/vidarc_data \
+    /path/to/Wan2.2-TI2V-5B \
+    /path/to/vidar.pt \
+    ./output_vidarc \
+    4000
+
+# Self-Forcing training
+./run_train_vidarc.sh \
+    configs/vidarc_2xh200.yaml \
+    ./data/vidarc_data \
+    /path/to/Wan2.2-TI2V-5B \
+    /path/to/vidar.pt \
+    ./output_vidarc \
+    4000
+```
+
+#### Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `training/config.py` | Config dataclasses including `EvalConfig` |
+| `training/trainers/vidarc_trainer.py` | Main trainer with SF/Standard modes |
+| `training/trainers/base.py` | Base trainer with eval hooks |
+| `training/models/wrapper_causal.py` | WanModelCausal training wrapper |
+| `run_train_vidarc.sh` | Training launch script |
+| `configs/vidarc_2xh200_no_sf.yaml` | Standard training config |
+| `configs/vidarc_2xh200.yaml` | Self-Forcing training config |
+
+---
+
 ## References
 
 - Vidarc Paper: arXiv:2512.17661
