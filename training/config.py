@@ -35,6 +35,7 @@ class TrainingConfig:
     # Scheduler
     warmup_steps: int = 200
     scheduler: Literal["cosine", "linear", "constant"] = "cosine"
+    min_lr: Optional[float] = None  # Minimum learning rate for cosine scheduler
 
     # Freezing
     freeze: List[str] = field(default_factory=lambda: ["t5", "vae"])
@@ -62,6 +63,39 @@ class DataConfig:
     # Classifier-free guidance
     cfg_prob: float = 0.1
 
+    # DataLoader optimization
+    prefetch_factor: Optional[int] = None  # Prefetch more batches to hide I/O latency
+    persistent_workers: bool = False  # Keep workers alive between epochs
+
+
+@dataclass
+class DiffusionConfig:
+    """Few-Step Diffusion and Stochastic Gradient Truncation configuration.
+
+    Implements optimizations from the Vidarc paper:
+    - Few-step diffusion: Use fewer denoising steps (e.g., 10 instead of 1000)
+    - Stochastic gradient truncation: Only backprop through one random timestep per batch
+    """
+    # Few-step diffusion settings
+    num_inference_steps: int = 10  # Number of denoising steps during inference
+    num_train_timesteps: int = 1000  # Scale for timestep embeddings (keep at 1000 for compatibility)
+
+    # Stochastic gradient truncation
+    stochastic_truncation: bool = True  # Enable stochastic gradient truncation
+    truncation_strategy: Literal["uniform", "importance", "stratified"] = "uniform"
+    # - "uniform": Sample timestep uniformly from [0, 1]
+    # - "importance": Sample more from critical timesteps (t=0.3-0.7)
+    # - "stratified": Divide [0,1] into bins and sample from each
+
+    # Importance sampling weights (for strategy="importance")
+    importance_low_t: float = 0.3  # Lower bound for high importance region
+    importance_high_t: float = 0.7  # Upper bound for high importance region
+    importance_weight: float = 3.0  # Weight multiplier for important region
+
+    # Gradient truncation options
+    detach_kv_cache: bool = True  # Detach KV cache from gradient graph
+    gradient_checkpointing_compatible: bool = True  # Ensure compatibility with activation checkpointing
+
 
 @dataclass
 class LossConfig:
@@ -82,6 +116,19 @@ class SelfForcingConfig:
     chunk_size: int = 16
     kv_cache_length: int = 64
     same_step_across_blocks: bool = True
+
+
+@dataclass
+class LoRAConfig:
+    """LoRA (Low-Rank Adaptation) configuration for parameter-efficient finetuning."""
+    enabled: bool = False
+    rank: int = 32  # LoRA rank (r)
+    alpha: int = 32  # LoRA alpha (scaling factor)
+    dropout: float = 0.0  # LoRA dropout
+    target_modules: List[str] = field(default_factory=lambda: ["q", "k", "v", "o"])  # Modules to apply LoRA
+    # Additional options
+    bias: str = "none"  # "none", "all", or "lora_only"
+    modules_to_save: List[str] = field(default_factory=list)  # Modules to train fully (not LoRA)
 
 
 @dataclass
@@ -106,6 +153,7 @@ class LoggingConfig:
     use_wandb: bool = True
     wandb_project: str = "vidar-training"
     wandb_entity: Optional[str] = None
+    wandb_run_id: Optional[str] = None  # Wandb run id to resume (for offline mode)
 
 
 @dataclass
@@ -117,6 +165,29 @@ class OutputConfig:
     save_scheduler: bool = True
     log_interval: int = 50
     save_interval: int = 1000
+    resume: Optional[str] = None  # Path to checkpoint to resume from (null = no resume)
+
+
+@dataclass
+class EvalConfig:
+    """Evaluation configuration for post-training evaluation."""
+    enabled: bool = False  # Enable evaluation after checkpoint saves
+    run_after_save: bool = False  # Run eval after each checkpoint save
+
+    # Task settings
+    task_name: str = "adjust_bottle"
+    task_config: str = "hd_clean"
+
+    # Model paths
+    idm_path: str = "vidar_ckpts/idm.pt"
+
+    # Generation settings
+    num_new_frames: int = 16
+    num_sampling_steps: int = 10
+    cfg_scale: float = 3.0
+
+    # Output
+    prefix: str = ""  # If empty, will use step_<N>
 
 
 @dataclass
@@ -126,10 +197,13 @@ class VidarConfig:
     training: TrainingConfig = field(default_factory=TrainingConfig)
     data: DataConfig = field(default_factory=DataConfig)
     loss: LossConfig = field(default_factory=LossConfig)
+    diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)  # Few-step + stochastic truncation
     self_forcing: SelfForcingConfig = field(default_factory=SelfForcingConfig)
+    lora: LoRAConfig = field(default_factory=LoRAConfig)
     distributed: DistributedConfig = field(default_factory=DistributedConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    evaluation: EvalConfig = field(default_factory=EvalConfig)
 
     # Seed
     seed: int = 42
@@ -149,10 +223,13 @@ class VidarConfig:
             training=TrainingConfig(**data.get("training", {})),
             data=DataConfig(**data.get("data", {})),
             loss=LossConfig(**data.get("loss", {})),
+            diffusion=DiffusionConfig(**data.get("diffusion", {})),
             self_forcing=SelfForcingConfig(**data.get("self_forcing", {})),
+            lora=LoRAConfig(**data.get("lora", {})),
             distributed=DistributedConfig(**data.get("distributed", {})),
             logging=LoggingConfig(**data.get("logging", {})),
             output=OutputConfig(**data.get("output", {})),
+            evaluation=EvalConfig(**data.get("evaluation", {})),
             seed=data.get("seed", 42),
         )
 
