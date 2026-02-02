@@ -431,6 +431,11 @@ class VidarCausalTrainer(BaseTrainer):
         The gradient is only computed for the selected timestep s ∈ [1, T].
         KV cache updates are detached from the gradient graph.
 
+        IMPORTANT: This method matches the exact behavior of the original
+        forward_self_forcing to avoid train-eval mismatch:
+        - Noising uses t directly (same scale as original)
+        - Model input uses t * 1000 (matching original t_model = t_chunk * 1000)
+
         Args:
             x_clean: Clean latent video (B, C, T, H, W)
             t: Timestep tensor (B,) - the single timestep for gradient computation
@@ -464,6 +469,7 @@ class VidarCausalTrainer(BaseTrainer):
             x0_chunk = torch.randn_like(x_chunk)
 
             # Use the same timestep for all chunks (as per same_t_across_chunks)
+            # MATCH ORIGINAL: t is passed directly, matching forward_self_forcing behavior
             t_chunk = t
 
             # Expand timestep for broadcasting
@@ -471,13 +477,12 @@ class VidarCausalTrainer(BaseTrainer):
             while t_expanded.dim() < x_chunk.dim():
                 t_expanded = t_expanded.unsqueeze(-1)
 
-            # Normalize t to [0, 1] for noising
-            t_normalized = t_expanded / self.num_train_timesteps
+            # MATCH ORIGINAL (wrapper_causal.py:382):
+            # Create noised chunk using t directly (same as original code)
+            # x_noised = (1 - t_expanded) * x_chunk + t_expanded * x0_chunk
+            x_noised = (1 - t_expanded) * x_chunk + t_expanded * x0_chunk
 
-            # Create noised chunk: x_t = (1-t) * x_1 + t * x_0
-            x_noised = (1 - t_normalized) * x_chunk + t_normalized * x0_chunk
-
-            # Target velocity
+            # Target velocity (same as original)
             v_target = x0_chunk - x_chunk
 
             # Determine if this chunk should have gradients
@@ -499,8 +504,9 @@ class VidarCausalTrainer(BaseTrainer):
                 prefill = False
                 chunk_prefill = False
 
-            # Scale timestep for model input
-            t_model = t_chunk
+            # MATCH ORIGINAL (wrapper_causal.py:419):
+            # Scale timestep for model input: t_model = t_chunk * 1000.0
+            t_model = t_chunk * 1000.0
 
             if requires_grad:
                 # This chunk gets gradients - do full forward pass
@@ -696,18 +702,18 @@ class VidarCausalTrainer(BaseTrainer):
 
         x0 = torch.randn_like(x1)
 
-        # Add noise - normalize t to [0, 1] for noising
-        t_expanded = t / self.num_train_timesteps
+        # Add noise - MATCH ORIGINAL: use t directly (same as original code)
+        t_expanded = t
         while t_expanded.dim() < x1.dim():
             t_expanded = t_expanded.unsqueeze(-1)
 
-        # x_t = (1-t) * x1 + t * x0
+        # x_t = (1-t) * x1 + t * x0 (same as original)
         x_t = (1 - t_expanded) * x1 + t_expanded * x0
 
         # Target velocity
         v_target = x0 - x1
 
-        # Forward through DiT
+        # Forward through DiT - uses prefill mode which handles timestep correctly
         v_pred = self.wrapper(x_t, t, context)
 
         # Loss
