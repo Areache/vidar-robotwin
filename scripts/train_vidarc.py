@@ -154,6 +154,28 @@ def parse_args():
         help="Enable embodiment-aware loss weighting"
     )
 
+    # LoRA parameters
+    parser.add_argument(
+        "--lora", action="store_true",
+        help="Enable LoRA (Low-Rank Adaptation) training"
+    )
+    parser.add_argument(
+        "--lora-rank", type=int, default=32,
+        help="LoRA rank (default: 32)"
+    )
+    parser.add_argument(
+        "--lora-alpha", type=int, default=32,
+        help="LoRA alpha scaling factor (default: 32)"
+    )
+    parser.add_argument(
+        "--lora-dropout", type=float, default=0.0,
+        help="LoRA dropout (default: 0.0)"
+    )
+    parser.add_argument(
+        "--lora-target-modules", type=str, default="q,k,v,o",
+        help="Comma-separated list of modules to apply LoRA (default: q,k,v,o)"
+    )
+
     # Resume
     parser.add_argument(
         "--resume", type=str, default=None,
@@ -205,28 +227,76 @@ def main():
     # Load config
     config = load_config(args.config)
 
-    # Override with command line args
+    # Override with command line args (these always override config)
     config.data.data_dir = args.data_dir
     config.model.ckpt_dir = args.ckpt_dir
     config.model.pt_dir = args.pt_dir
     config.output.output_dir = args.output_dir
+    # Also sync to logging.output_dir for consistency
+    config.logging.output_dir = args.output_dir
 
     # Stage 2 specific settings
-    config.model.chunk_size = args.chunk_size
-    config.training.eta = args.eta
-    config.training.use_embodiment_loss = args.use_embodiment_loss
+    # Sync chunk_size from self_forcing to model (trainer reads from config.model.chunk_size)
+    if hasattr(config.self_forcing, "chunk_size") and config.self_forcing.chunk_size:
+        config.model.chunk_size = config.self_forcing.chunk_size
+    # Command line args override config file (only if explicitly set, not default)
+    if args.chunk_size != 16:  # Default is 16, only override if different
+        config.model.chunk_size = args.chunk_size
+        config.self_forcing.chunk_size = args.chunk_size
+    
+    # Sync eta from loss to training (trainer reads from config.training.eta)
+    if hasattr(config.loss, "eta") and config.loss.eta:
+        config.training.eta = config.loss.eta
+    # Command line args override config file (only if explicitly set, not default)
+    if args.eta != 3.0:  # Default is 3.0, only override if different
+        config.training.eta = args.eta
+        config.loss.eta = args.eta
+    
+    # Sync embodiment_aware from loss to training
+    if hasattr(config.loss, "embodiment_aware"):
+        config.training.use_embodiment_loss = config.loss.embodiment_aware
+    # Command line args override config file
+    if args.use_embodiment_loss:
+        config.training.use_embodiment_loss = True
+        config.loss.embodiment_aware = True
 
+    # LoRA configuration (command line args override config)
+    if args.lora:
+        config.lora.enabled = True
+        config.lora.rank = args.lora_rank
+        config.lora.alpha = args.lora_alpha
+        config.lora.dropout = args.lora_dropout
+        config.lora.target_modules = args.lora_target_modules.split(",")
+        if is_main:
+            logger.info(f"LoRA enabled: rank={args.lora_rank}, alpha={args.lora_alpha}, "
+                       f"target_modules={config.lora.target_modules}")
+
+    # Training hyperparameters (command line args override config)
     if args.max_steps is not None:
         config.training.max_steps = args.max_steps
+        config.training.num_steps = args.max_steps
+    elif config.training.num_steps:
+        # If max_steps not set, use num_steps from config
+        config.training.max_steps = config.training.num_steps
+    
     if args.batch_size is not None:
         config.training.batch_size = args.batch_size
     if args.lr is not None:
         config.training.lr = args.lr
     if args.gradient_accumulation is not None:
+        config.training.gradient_accumulation = args.gradient_accumulation
         config.training.gradient_accumulation_steps = args.gradient_accumulation
+    elif config.training.gradient_accumulation:
+        # Sync gradient_accumulation to gradient_accumulation_steps
+        config.training.gradient_accumulation_steps = config.training.gradient_accumulation
 
-    config.output.log_interval = args.log_interval
-    config.output.save_interval = args.save_interval
+    # Logging intervals (command line args override config)
+    if args.log_interval != 10:  # Only override if not default
+        config.output.log_interval = args.log_interval
+        config.logging.log_interval = args.log_interval
+    if args.save_interval != 500:  # Only override if not default
+        config.output.save_interval = args.save_interval
+        config.logging.save_interval = args.save_interval
 
     # Warn if no Stage 1 weights provided
     if args.pt_dir is None and is_main:
@@ -272,6 +342,11 @@ def main():
         logger.info(f"  - Learning rate: {config.training.lr}")
         logger.info(f"  - Chunk size: {args.chunk_size}")
         logger.info(f"  - Embodiment loss: {args.use_embodiment_loss} (eta={args.eta})")
+        if args.lora:
+            logger.info(f"  - LoRA: enabled (rank={args.lora_rank}, alpha={args.lora_alpha})")
+            logger.info(f"  - LoRA target modules: {args.lora_target_modules}")
+        else:
+            logger.info(f"  - LoRA: disabled (full finetuning)")
         logger.info("=" * 60)
 
     # Train

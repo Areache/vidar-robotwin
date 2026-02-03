@@ -7,22 +7,25 @@ TASK_CONFIG=${1:-"hd_clean"}
 
 # 模型路径配置
 # 优先使用本地路径，如果不存在则从对象存储下载
-LOCAL_MODEL_DIR="/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts"
-OSS_MODEL_PATH="h-ceph:qinyiran/vidar/vidar_ckpts"
+# LOCAL_MODEL_DIR="/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts"
+# LOCAL_MODEL_DIR="/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/checkpoints/vidar"
+# OSS_MODEL_PATH="h-ceph:qinyiran/vidar/vidar_ckpts"
 
-# 确保本地目录存在
-mkdir -p "$LOCAL_MODEL_DIR"
+# # 确保本地目录存在
+# mkdir -p "$LOCAL_MODEL_DIR"
 
-# 检查文件是否存在
-if [ -f "$LOCAL_MODEL_DIR/vidarc.pt" ]; then
-    DEFAULT_MODEL="$LOCAL_MODEL_DIR/vidarc.pt"
-    DEFAULT_IDM="$LOCAL_MODEL_DIR/idm.pt"
-    echo "使用本地模型文件: $DEFAULT_MODEL"
-else
-    echo "错误: 模型文件不存在，请检查路径或手动下载"
-    exit 1
-fi
-
+# # 检查文件是否存在
+# if [ -f "$LOCAL_MODEL_DIR/vidarc_2x_no_sf.pt" ]; then
+#     DEFAULT_MODEL="$LOCAL_MODEL_DIR/vidarc_2x_no_sf.pt"
+   
+#     echo "使用本地模型文件: $DEFAULT_MODEL"
+# else
+#     echo "错误: 模型文件不存在，请检查路径或手动下载"
+#     exit 1
+# fi
+DEFAULT_MODEL="/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt"
+# DEFAULT_MODEL="/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/checkpoints/vidar/vidarc_4x.pt"
+DEFAULT_IDM="/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/idm.pt"
 MODEL=${2:-"$DEFAULT_MODEL"}
 IDM=${3:-"$DEFAULT_IDM"} 
 PREFIX=${4:-"ddp_causal"}
@@ -175,6 +178,7 @@ torchrun --nproc_per_node=$GPU_COUNT --master_port=$MASTER_PORT \
     --idm "$IDM" \
     --prefix "$PREFIX" \
     --task_config "$TASK_CONFIG" \
+    --base_port 25402 \
     --num_new_frames "$NUM_NEW_FRAMES" \
     --num_sampling_step "$NUM_SAMPLING_STEP" \
     --cfg "$CFG" \

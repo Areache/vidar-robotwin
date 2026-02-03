@@ -292,7 +292,9 @@ def get_dataloader(
     num_workers: int = 4,
     pin_memory: bool = True,
     distributed: bool = False,
-    drop_last: bool = True
+    drop_last: bool = True,
+    prefetch_factor: Optional[int] = None,
+    persistent_workers: bool = False,
 ) -> DataLoader:
     """
     Create dataloader with optional distributed sampler.
@@ -305,6 +307,8 @@ def get_dataloader(
         pin_memory: Whether to pin memory
         distributed: Whether to use distributed sampler
         drop_last: Whether to drop last incomplete batch
+        prefetch_factor: Number of batches to prefetch per worker
+        persistent_workers: Keep workers alive between epochs
 
     Returns:
         DataLoader instance
@@ -314,16 +318,25 @@ def get_dataloader(
         sampler = DistributedSampler(dataset, shuffle=shuffle)
         shuffle = False
 
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        sampler=sampler,
-        drop_last=drop_last,
-        collate_fn=vidar_collate_fn
-    )
+    # Build dataloader kwargs
+    loader_kwargs = {
+        "batch_size": batch_size,
+        "shuffle": shuffle,
+        "num_workers": num_workers,
+        "pin_memory": pin_memory,
+        "sampler": sampler,
+        "drop_last": drop_last,
+        "collate_fn": vidar_collate_fn,
+    }
+
+    # Add prefetch_factor and persistent_workers if num_workers > 0
+    if num_workers > 0:
+        if prefetch_factor is not None:
+            loader_kwargs["prefetch_factor"] = prefetch_factor
+        if persistent_workers:
+            loader_kwargs["persistent_workers"] = persistent_workers
+
+    return DataLoader(dataset, **loader_kwargs)
 
 
 def vidar_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:

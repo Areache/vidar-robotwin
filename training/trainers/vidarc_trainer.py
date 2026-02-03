@@ -1,6 +1,9 @@
 """Stage 2 Trainer: Vidarc causal fine-tuning with Self-Forcing."""
 
 import logging
+import math
+import re
+import time
 from typing import Dict, Any, Optional
 
 import torch
@@ -12,6 +15,112 @@ from ..models.wrapper_causal import WanModelCausalTrainingWrapper
 from ..losses import sample_timestep
 
 logger = logging.getLogger(__name__)
+
+
+class LoRALinear(nn.Module):
+    """
+    LoRA-enhanced Linear layer that's compatible with FSDP.
+
+    Instead of wrapping the original layer, this replaces it entirely
+    with a frozen weight matrix + trainable low-rank adapters.
+    """
+
+    def __init__(self, original_layer: nn.Linear, rank: int, alpha: float, dropout: float = 0.0):
+        super().__init__()
+        self.rank = rank
+        self.alpha = alpha
+        self.scaling = alpha / rank
+
+        in_features = original_layer.in_features
+        out_features = original_layer.out_features
+        device = original_layer.weight.device
+        dtype = original_layer.weight.dtype
+
+        # Store original weight as frozen buffer (not a parameter, so FSDP won't shard it)
+        self.register_buffer('frozen_weight', original_layer.weight.data.clone())
+        if original_layer.bias is not None:
+            self.register_buffer('frozen_bias', original_layer.bias.data.clone())
+        else:
+            self.frozen_bias = None
+
+        # LoRA matrices - trainable parameters on same device/dtype
+        self.lora_A = nn.Parameter(torch.zeros(rank, in_features, device=device, dtype=dtype))
+        self.lora_B = nn.Parameter(torch.zeros(out_features, rank, device=device, dtype=dtype))
+        self.lora_dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+
+        # Initialize LoRA weights (A with kaiming, B with zeros)
+        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+        # lora_B already zeros
+
+    def forward(self, x):
+        # Frozen linear: x @ W^T + b
+        result = nn.functional.linear(x, self.frozen_weight, self.frozen_bias)
+
+        # LoRA: x @ A^T @ B^T * scaling
+        lora_x = self.lora_dropout(x)
+        lora_out = nn.functional.linear(nn.functional.linear(lora_x, self.lora_A), self.lora_B)
+
+        return result + lora_out * self.scaling
+
+
+def apply_lora_to_model(model: nn.Module, lora_config) -> nn.Module:
+    """
+    Apply LoRA (Low-Rank Adaptation) to the model.
+
+    This implementation manually injects LoRA layers into the target modules,
+    which is more compatible with diffusion models than PEFT's get_peft_model().
+
+    Args:
+        model: The model to apply LoRA to
+        lora_config: LoRA configuration
+
+    Returns:
+        Model with LoRA applied (same model, modified in-place)
+    """
+    target_modules = lora_config.target_modules
+    rank = lora_config.rank
+    alpha = lora_config.alpha
+    dropout = lora_config.dropout
+
+    logger.info(f"Applying LoRA with rank={rank}, alpha={alpha}")
+    logger.info(f"Target modules: {target_modules}")
+
+    # First, freeze all parameters
+    for param in model.parameters():
+        param.requires_grad = False
+
+    # Find and replace target modules with LoRA layers
+    lora_layers_added = 0
+
+    for name, module in model.named_modules():
+        # Check if this module's name ends with any of the target module names
+        module_name = name.split('.')[-1]
+        if module_name in target_modules and isinstance(module, nn.Linear):
+            # Get parent module and attribute name
+            parent_name = '.'.join(name.split('.')[:-1])
+            attr_name = name.split('.')[-1]
+
+            if parent_name:
+                parent = model.get_submodule(parent_name)
+            else:
+                parent = model
+
+            # Create LoRA layer
+            lora_layer = LoRALinear(module, rank, alpha, dropout)
+
+            # Replace the original layer
+            setattr(parent, attr_name, lora_layer)
+            lora_layers_added += 1
+
+    logger.info(f"Added LoRA to {lora_layers_added} layers")
+
+    # Log trainable parameters
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in model.parameters())
+    logger.info(f"LoRA trainable parameters: {trainable_params:,} / {total_params:,} "
+                f"({100 * trainable_params / total_params:.2f}%)")
+
+    return model
 
 
 class VidarCausalTrainer(BaseTrainer):
@@ -42,6 +151,16 @@ class VidarCausalTrainer(BaseTrainer):
         self.eta = getattr(config.training, "eta", 3.0)  # Embodiment weight
         self.use_embodiment_loss = getattr(config.training, "use_embodiment_loss", False)
 
+        # Training mode: Self-Forcing (True) or Standard (False)
+        # Set use_self_forcing=False to enable activation_checkpointing
+        self.use_self_forcing = getattr(config.self_forcing, "enabled", True)
+        logger.info(f"Training mode: {'Self-Forcing' if self.use_self_forcing else 'Standard (no SF)'}")
+
+        # LoRA parameters
+        self.use_lora = getattr(config.lora, "enabled", False)
+        if self.use_lora:
+            logger.info(f"LoRA enabled with rank={config.lora.rank}, alpha={config.lora.alpha}")
+
     def _build_model(self) -> nn.Module:
         """Build WanModelCausal training wrapper."""
         cfg = self.config.model
@@ -71,13 +190,24 @@ class VidarCausalTrainer(BaseTrainer):
         cfg = self.config.distributed
         transformer_layer_cls = self._get_transformer_layer_cls()
 
+        # Disable activation checkpointing when using LoRA + Self-Forcing
+        # Activation checkpointing is incompatible with stateful KV cache:
+        # - Forward pass: KV cache accumulates across chunks
+        # - Backward recomputation: KV cache state not preserved -> shape mismatch
+        # LoRA already provides ~75% memory savings, so this is acceptable
+        use_activation_checkpointing = cfg.activation_checkpointing
+        if self.use_lora and self.use_self_forcing and use_activation_checkpointing:
+            logger.warning("Disabling activation_checkpointing for LoRA + Self-Forcing training")
+            logger.warning("(Activation checkpointing is incompatible with stateful KV cache)")
+            use_activation_checkpointing = False
+
         wrapped_dit = wrap_model_fsdp(
             model,
             sharding_strategy=cfg.sharding_strategy,
             mixed_precision=cfg.mixed_precision,
             transformer_layer_cls=transformer_layer_cls,
             cpu_offload=cfg.cpu_offload,
-            activation_checkpointing=cfg.activation_checkpointing,
+            activation_checkpointing=use_activation_checkpointing,
         )
 
         # Update wrapper's dit reference
@@ -92,6 +222,13 @@ class VidarCausalTrainer(BaseTrainer):
         # Build model (creates wrapper and returns dit)
         logger.info("Building causal model...")
         self.model = self._build_model()
+
+        # Apply LoRA if enabled (before FSDP wrapping)
+        if self.use_lora:
+            logger.info("Applying LoRA to DiT model...")
+            self.model = apply_lora_to_model(self.model, self.config.lora)
+            # Update wrapper's dit reference
+            self.wrapper.dit = self.model
 
         # Wrap DiT with FSDP if distributed
         if self.world_size > 1 and self.config.distributed.use_fsdp:
@@ -116,7 +253,12 @@ class VidarCausalTrainer(BaseTrainer):
         # Setup encoders
         self._setup_encoders()
 
+        # Note: wandb will be initialized after checkpoint loading (if any)
+        # This ensures we can resume the correct wandb run in offline mode
+
         logger.info(f"Setup complete! Chunk size: {self.chunk_size}")
+        if self.use_lora:
+            logger.info(f"LoRA training enabled with rank={self.config.lora.rank}")
 
     def _setup_encoders(self):
         """Setup T5 and VAE for encoding."""
@@ -134,12 +276,25 @@ class VidarCausalTrainer(BaseTrainer):
         """Build optimizer for DiT parameters only."""
         cfg = self.config.training
 
-        trainable_params = self.wrapper.get_trainable_parameters()
+        # Get trainable parameters
+        if self.use_lora:
+            # For LoRA, get parameters from the PEFT model
+            trainable_params = [p for p in self.model.parameters() if p.requires_grad]
+            # LoRA typically needs 10-20x higher learning rate
+            lr = cfg.lr
+            if lr < 1e-4:
+                # If using a low learning rate typical for full finetuning, scale up for LoRA
+                lr = lr * 10
+                logger.info(f"LoRA: Scaling learning rate from {cfg.lr} to {lr}")
+        else:
+            trainable_params = self.wrapper.get_trainable_parameters()
+            lr = cfg.lr
+
         logger.info(f"Trainable parameters: {sum(p.numel() for p in trainable_params):,}")
 
         optimizer = torch.optim.AdamW(
             trainable_params,
-            lr=cfg.lr,
+            lr=lr,
             betas=(cfg.beta1, cfg.beta2),
             eps=cfg.epsilon,
             weight_decay=cfg.weight_decay,
@@ -149,7 +304,7 @@ class VidarCausalTrainer(BaseTrainer):
 
     def train_step(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
-        Single training step with Self-Forcing.
+        Single training step - routes to Self-Forcing or Standard based on config.
 
         Args:
             batch: Dict with 'video' (B, T, C, H, W) and 'instruction' (List[str])
@@ -157,26 +312,73 @@ class VidarCausalTrainer(BaseTrainer):
         Returns:
             Dict with 'loss' tensor and optional metrics
         """
+        # Route to appropriate training method
+        if self.use_self_forcing:
+            return self.train_step_self_forcing(batch)
+        else:
+            return self.train_step_standard(batch)
+
+    def train_step_self_forcing(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        """
+        Training step with Self-Forcing (original method).
+
+        Note: This method is NOT compatible with activation_checkpointing
+        due to KV cache accumulation.
+        """
         video = batch["video"]  # (B, T, C, H, W)
         instructions = batch["instruction"]  # List[str]
         B = video.shape[0]
 
+        # DATALOADER FORMAT DEBUG: Log input format
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_self_forcing]: "
+        #                f"Input batch['video'].shape={video.shape} (B, T, C, H, W), "
+        #                f"dtype={video.dtype}, "
+        #                f"value_range=[{video.min().item():.3f}, {video.max().item():.3f}], "
+        #                f"len(instructions)={len(instructions)}")
+
         # Convert video format: (B, T, C, H, W) -> (B, C, T, H, W)
         video = video.permute(0, 2, 1, 3, 4)
 
-        # Normalize from [0, 1] to [-1, 1]
+        # Clamp to ensure strict [0, 1] range before normalization (matching inference)
+        video = torch.clamp(video, 0.0, 1.0)
+
+        # Normalize from [0, 1] to [-1, 1] (same formula as inference: (x/255.0 - 0.5)/0.5 for [0,255] input)
+        # For [0,1] input: x * 2 - 1 is equivalent to inference's normalization
         video = video * 2 - 1
+
+        # DATALOADER FORMAT DEBUG: Log after conversion and normalization
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_self_forcing]: "
+        #                f"After permute+normalize: video.shape={video.shape} (B, C, T, H, W), "
+        #                f"dtype={video.dtype}, "
+        #                f"value_range=[{video.min().item():.3f}, {video.max().item():.3f}] (expected: [-1, 1])")
 
         # Encode video to latent space
         with torch.no_grad():
             x_clean = self._encode_video(video)  # (B, C_latent, T', H', W')
+        
+        # DATALOADER FORMAT DEBUG: Log after encoding
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_self_forcing]: "
+        #                f"After VAE encode: x_clean.shape={x_clean.shape} (B, C_latent, T', H', W'), "
+        #                f"dtype={x_clean.dtype}, "
+        #                f"value_range=[{x_clean.min().item():.3f}, {x_clean.max().item():.3f}]")
 
         # Encode text
         with torch.no_grad():
             context = self._encode_text(instructions)  # (B, L, D)
 
-        # Sample timesteps
-        t = sample_timestep(B, self.device)
+        # Sample timesteps (scaled to [0, num_train_timesteps] to match inference)
+        num_train_timesteps = getattr(self.wrapper.dit.config, 'num_train_timesteps', 1000)
+        t = sample_timestep(B, self.device, num_train_timesteps=num_train_timesteps)
+        
+        # Log timestep range for debugging (only log occasionally to avoid spam)
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"TIMESTEP DEBUG [step={self.global_step}]: "
+        #                f"t range=[{t.min().item():.2f}, {t.max().item():.2f}], "
+        #                f"mean={t.mean().item():.2f}, "
+        #                f"num_train_timesteps={num_train_timesteps}")
 
         # Self-Forcing forward pass
         v_pred, v_target = self.wrapper.forward_self_forcing(
@@ -259,7 +461,14 @@ class VidarCausalTrainer(BaseTrainer):
     def _encode_text(self, instructions: list) -> torch.Tensor:
         """Encode text instructions."""
         context = self.wrapper.encode_text(instructions)
-        return context.to(self.device)
+        # Handle list type (WanModelCausalTrainingWrapper returns list of tensors)
+        if isinstance(context, list):
+            # Stack list of tensors into single tensor (B, L, D)
+            context = torch.stack([c.to(self.device) for c in context])
+        else:
+            # Already a tensor, just move to device
+            context = context.to(self.device)
+        return context
 
     def train_step_standard(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
@@ -271,27 +480,65 @@ class VidarCausalTrainer(BaseTrainer):
         instructions = batch["instruction"]
         B = video.shape[0]
 
+        # DATALOADER FORMAT DEBUG: Log input format
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_standard]: "
+        #                f"Input batch['video'].shape={video.shape} (B, T, C, H, W), "
+        #                f"dtype={video.dtype}, "
+        #                f"value_range=[{video.min().item():.3f}, {video.max().item():.3f}], "
+        #                f"len(instructions)={len(instructions)}")
+
         # Convert video format
         video = video.permute(0, 2, 1, 3, 4)
+        
+        # Clamp to ensure strict [0, 1] range before normalization (matching inference)
+        video = torch.clamp(video, 0.0, 1.0)
+        
+        # Normalize from [0, 1] to [-1, 1] (same formula as inference)
         video = video * 2 - 1
+
+        # DATALOADER FORMAT DEBUG: Log after conversion and normalization
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_standard]: "
+        #                f"After permute+normalize: video.shape={video.shape} (B, C, T, H, W), "
+        #                f"dtype={video.dtype}, "
+        #                f"value_range=[{video.min().item():.3f}, {video.max().item():.3f}] (expected: [-1, 1])")
 
         # Encode
         with torch.no_grad():
             x1 = self._encode_video(video)
             context = self._encode_text(instructions)
+        
+        # DATALOADER FORMAT DEBUG: Log after encoding
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_standard]: "
+        #                f"After VAE encode: x1.shape={x1.shape} (B, C_latent, T', H', W'), "
+        #                f"dtype={x1.dtype}, "
+        #                f"value_range=[{x1.min().item():.3f}, {x1.max().item():.3f}]")
 
-        # Sample timesteps and noise
-        t = sample_timestep(B, self.device)
+        # Sample timesteps and noise (scaled to [0, num_train_timesteps] to match inference)
+        num_train_timesteps = getattr(self.wrapper.dit.config, 'num_train_timesteps', 1000)
+        t = sample_timestep(B, self.device, num_train_timesteps=num_train_timesteps)
+        
+        # Log timestep range for debugging (only log occasionally to avoid spam)
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"TIMESTEP DEBUG [step={self.global_step}]: "
+        #                f"t range=[{t.min().item():.2f}, {t.max().item():.2f}], "
+        #                f"mean={t.mean().item():.2f}, "
+        #                f"num_train_timesteps={num_train_timesteps}")
+        
         x0 = torch.randn_like(x1)
 
         # Add noise
         t_expanded = t
         while t_expanded.dim() < x1.dim():
             t_expanded = t_expanded.unsqueeze(-1)
-        x_t = t_expanded * x1 + (1 - t_expanded) * x0
-
-        # Target velocity
+        #!!! 
+        # x_t = t_expanded * x1 + (1 - t_expanded) * x0
+        x_t = (1 - t_expanded) * x1 + t_expanded * x0
+        #!!! Target velocity
         v_target = x0 - x1
+        # v_target = x1 - x0
 
         # Forward through DiT
         v_pred = self.wrapper(x_t, t, context)
@@ -302,34 +549,98 @@ class VidarCausalTrainer(BaseTrainer):
         return {"loss": loss}
 
     def save_checkpoint(self, path: Optional[str] = None):
-        """Save checkpoint (DiT weights only)."""
+        """Save checkpoint (DiT weights only, or LoRA weights if using LoRA)."""
         from ..distributed.fsdp_utils import is_main_process
-
-        if not is_main_process():
-            return
+        # Torch 2.x exports FSDP as FullyShardedDataParallel; keep alias for compatibility
+        try:
+            from torch.distributed.fsdp import (
+                FullyShardedDataParallel as FSDP,
+                FullStateDictConfig,
+                StateDictType,
+            )
+        except ImportError:
+            # Fallback for older torch where FSDP may not be present
+            FSDP = None
+            FullStateDictConfig = None
+            StateDictType = None
 
         path = path or self.config.output.save_path
         from pathlib import Path
+
+        # Auto-inject current step into filename if not already present
+        if path == self.config.output.save_path:
+            # Use current global step (real-time step) instead of total steps
+            current_step = self.global_step
+            path_obj = Path(path)
+            
+            # Check if step count is already in filename (e.g., vidarc_4x_1234.pt)
+            # Remove any existing step number from stem first
+            stem = path_obj.stem
+            # Try to remove existing step pattern (e.g., _4000, _1234)
+            stem_clean = re.sub(r'_\d+$', '', stem)
+            
+            # Insert current step count before extension: vidarc_4x.pt -> vidarc_4x_1234.pt
+            new_stem = f"{stem_clean}_{current_step}"
+            path = str(path_obj.parent / f"{new_stem}{path_obj.suffix}")
+        
         Path(path).parent.mkdir(parents=True, exist_ok=True)
 
-        dit_state = self.wrapper.get_dit_state_dict()
+        # Collect FSDP state dict properly (if FSDP is available and model is wrapped)
+        if FSDP is not None and isinstance(self.model, FSDP):
+            full_state_dict_config = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+            
+            with FSDP.state_dict_type(
+                self.model,
+                StateDictType.FULL_STATE_DICT,
+                full_state_dict_config,
+            ):
+                dit_state = self.model.state_dict()
+        else:
+            # Fallback: standard state_dict
+            dit_state = self.model.state_dict()
 
-        checkpoint = {
-            "model": dit_state,
-            "step": self.global_step,
-            "epoch": self.epoch,
-            "config": self.config.to_dict(),
-            "stage": 2,  # Mark as Stage 2 checkpoint
-        }
+        # Extract and save LoRA weights separately (after FSDP collection)
+        if self.use_lora and is_main_process():
+            try:
+                # Extract LoRA parameters from state dict (lora_A, lora_B keys)
+                lora_state_dict = {k: v for k, v in dit_state.items()
+                                   if 'lora_A' in k or 'lora_B' in k}
 
-        if self.config.output.save_optimizer:
-            checkpoint["optimizer"] = self.optimizer.state_dict()
+                lora_path = Path(path).parent / f"lora_{Path(path).stem}.pt"
+                torch.save({
+                    "lora_state_dict": lora_state_dict,
+                    "lora_config": {
+                        "rank": self.config.lora.rank,
+                        "alpha": self.config.lora.alpha,
+                        "dropout": self.config.lora.dropout,
+                        "target_modules": self.config.lora.target_modules,
+                    }
+                }, str(lora_path))
+                logger.info(f"Saved LoRA adapter weights to {lora_path} ({len(lora_state_dict)} tensors)")
+            except Exception as e:
+                logger.warning(f"Failed to save LoRA adapter weights: {e}")
 
-        if self.config.output.save_scheduler:
-            checkpoint["scheduler"] = self.scheduler.state_dict()
+        if is_main_process():
+            checkpoint = {
+                "model": dit_state,
+                "step": self.global_step,
+                "epoch": self.epoch,
+                "config": self.config.to_dict(),
+                "stage": 2,  # Mark as Stage 2 checkpoint
+            }
 
-        torch.save(checkpoint, path)
-        logger.info(f"Saved Stage 2 checkpoint to {path}")
+            if self.config.output.save_optimizer:
+                checkpoint["optimizer"] = self.optimizer.state_dict()
+
+            if self.config.output.save_scheduler:
+                checkpoint["scheduler"] = self.scheduler.state_dict()
+            
+            # Save wandb run id for resuming
+            if hasattr(self, "wandb_run_id") and self.wandb_run_id:
+                checkpoint["wandb_run_id"] = self.wandb_run_id
+
+            torch.save(checkpoint, path)
+            logger.info(f"Saved Stage 2 checkpoint to {path}")
 
     def load_checkpoint(self, path: str, load_optimizer: bool = True):
         """Load checkpoint."""
@@ -341,6 +652,16 @@ class VidarCausalTrainer(BaseTrainer):
 
         self.global_step = checkpoint.get("step", 0)
         self.epoch = checkpoint.get("epoch", 0)
+        
+        # Load wandb run id for resuming (works in offline mode)
+        # Priority: checkpoint > config file
+        if "wandb_run_id" in checkpoint:
+            self.wandb_run_id = checkpoint["wandb_run_id"]
+            logger.info(f"Found wandb run id in checkpoint: {self.wandb_run_id} (will resume in offline mode)")
+        elif hasattr(self.config.logging, "wandb_run_id") and self.config.logging.wandb_run_id:
+            # If checkpoint doesn't have run_id, try to get from config
+            self.wandb_run_id = self.config.logging.wandb_run_id
+            logger.info(f"Using wandb run id from config: {self.wandb_run_id} (will resume in offline mode)")
 
         if load_optimizer and "optimizer" in checkpoint:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
@@ -349,6 +670,109 @@ class VidarCausalTrainer(BaseTrainer):
             self.scheduler.load_state_dict(checkpoint["scheduler"])
 
         logger.info(f"Loaded checkpoint at step {self.global_step}")
+        
+        # Initialize wandb after loading checkpoint (so we can resume if run_id exists)
+        # This works in both online and offline modes
+        self._init_wandb()
+
+    def evaluate_checkpoint(self, checkpoint_path: str = None):
+        """
+        Run evaluation on the saved checkpoint.
+
+        This method runs the evaluation script after checkpoint saving.
+        Configured via environment variables or config.
+        """
+        import subprocess
+        import os
+        from ..distributed.fsdp_utils import is_main_process
+
+        if not is_main_process():
+            return
+
+        # Check if evaluation is enabled
+        # Priority: config file > environment variable
+        if hasattr(self.config, 'evaluation') and hasattr(self.config.evaluation, 'run_after_save'):
+            run_eval = self.config.evaluation.run_after_save
+        else:
+            run_eval = os.environ.get("RUN_EVAL_AFTER_SAVE", "false").lower() == "true"
+        
+        if not run_eval:
+            logger.info("Post-save evaluation disabled. Set evaluation.run_after_save=true in config or RUN_EVAL_AFTER_SAVE=true to enable.")
+            return
+
+        # Clear GPU cache before evaluation to avoid OOM
+        logger.info("Clearing GPU cache before evaluation...")
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            # Wait a bit for memory to be fully released
+            time.sleep(5)
+            logger.info("GPU cache cleared. Waiting 5 seconds for memory release...")
+
+        checkpoint_path = checkpoint_path or self.config.output.save_path
+
+        # Get evaluation config from environment variables
+        eval_config = {
+            "task_name": os.environ.get("EVAL_TASK_NAME", "adjust_bottle"),
+            "task_config": os.environ.get("EVAL_TASK_CONFIG", "hd_clean"),
+            "idm_path": os.environ.get("EVAL_IDM", "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/idm.pt"),
+            "prefix": os.environ.get("EVAL_PREFIX", f"step_{self.global_step}"),
+            "num_new_frames": os.environ.get("EVAL_NUM_NEW_FRAMES", "16"),
+            "num_sampling_step": os.environ.get("EVAL_NUM_SAMPLING_STEP", "10"),
+            "cfg": os.environ.get("EVAL_CFG", "3.0"),
+        }
+
+        logger.info(f"========================================")
+        logger.info(f"Running evaluation on checkpoint: {checkpoint_path}")
+        logger.info(f"Task: {eval_config['task_name']}")
+        logger.info(f"Config: {eval_config['task_config']}")
+        logger.info(f"========================================")
+
+        # Build evaluation command
+        script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        eval_script = os.path.join(script_dir, "run_eval_ddp_causal.sh")
+
+        if not os.path.exists(eval_script):
+            logger.warning(f"Evaluation script not found: {eval_script}")
+            return
+
+        # Construct command
+        cmd = [
+            "bash", eval_script,
+            eval_config["task_config"],
+            checkpoint_path,
+            eval_config["idm_path"],
+            eval_config["prefix"],
+            eval_config["num_new_frames"],
+            eval_config["num_sampling_step"],
+            eval_config["cfg"],
+        ]
+
+        # Set environment for evaluation
+        env = os.environ.copy()
+        env["TASK_NAME"] = eval_config["task_name"]
+
+        try:
+            logger.info(f"Evaluation command: TASK_NAME={eval_config['task_name']} {' '.join(cmd)}")
+            result = subprocess.run(
+                cmd,
+                env=env,
+                cwd=script_dir,
+                capture_output=False,  # Show output in real-time
+                text=True,
+            )
+
+            if result.returncode == 0:
+                logger.info(f"Evaluation completed successfully!")
+            else:
+                logger.warning(f"Evaluation failed with return code: {result.returncode}")
+
+        except Exception as e:
+            logger.error(f"Failed to run evaluation: {e}")
+
+        logger.info(f"========================================")
+        logger.info(f"Resuming training...")
+        logger.info(f"========================================")
 
 
 def create_vidarc_trainer(config: VidarConfig) -> VidarCausalTrainer:

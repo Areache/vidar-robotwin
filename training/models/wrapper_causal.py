@@ -296,6 +296,12 @@ class WanModelCausalTrainingWrapper(nn.Module):
         B = x.shape[0]
         block_size = self.get_block_size(x.shape)
 
+        # Add debug print for block_idx passing to model
+        # logger.info(f"BLOCK_IDX DEBUG [train forward_causal:277]: "
+        #            f"Passing to model: block_idx={block_idx}, prefill={prefill}, "
+        #            f"chunk_prefill={chunk_prefill}, use_cache={use_cache}, "
+        #            f"block_size={block_size}, x.shape={x.shape}")
+
         # Prepare context as list (WanModelCausal expects list)
         context_list = [context[i] for i in range(B)]
 
@@ -371,10 +377,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
             while t_expanded.dim() < x_chunk.dim():
                 t_expanded = t_expanded.unsqueeze(-1)
 
-            # Create noised chunk: x_t = t * x_1 + (1-t) * x_0
-            x_noised = t_expanded * x_chunk + (1 - t_expanded) * x0_chunk
-
-            # Target velocity: x_0 - x_1
+            #!!! Create noised chunk: x_t = t * x_1 + (1-t) * x_0
+            # x_noised = t_expanded * x_chunk + (1 - t_expanded) * x0_chunk
+            x_noised = (1 - t_expanded) * x_chunk + t_expanded * x0_chunk  
+            #!!! Target velocity
+            # v_target = x_chunk - x0_chunk
             v_target = x0_chunk - x_chunk
 
             # Build causal attention mask
@@ -385,35 +392,82 @@ class WanModelCausalTrainingWrapper(nn.Module):
                 )
                 prefill = True
                 chunk_prefill = False
+                # Add debug print for prefill chunk
+                # logger.info(f"BLOCK_IDX DEBUG [train forward_self_forcing:382]: "
+                #            f"Chunk {chunk_idx}, prefill=True, block_idx=None, "
+                #            f"chunk frames [{start_t}:{end_t}), T={T}, block_size={block_size}, "
+                #            f"chunk_size={chunk_size}")
             else:
-                # Subsequent chunks: attend to cached previous frames
+                # Subsequent chunks: use same path as inference (chunk_prefill=False + cache=True + block_idx)
+                # This ensures training uses rope_apply_one (same as inference) instead of rope_apply_chunk
                 attention_mask = self._build_chunk_causal_mask(
                     x_noised.shape, block_size,
                     kv_len=self.dit.kvcache_len(),
                     device=self.device
                 )
                 prefill = False
-                chunk_prefill = True
+                chunk_prefill = False  # Changed from True to False: use rope_apply_one instead of rope_apply_chunk
+                # Add debug print for subsequent chunks
+                # logger.info(f"BLOCK_IDX DEBUG [train forward_self_forcing:390]: "
+                #            f"Chunk {chunk_idx}, prefill=False, chunk_prefill=False (using inference path), "
+                #            f"block_idx={chunk_idx}, chunk frames [{start_t}:{end_t}), "
+                #            f"T={T}, block_size={block_size}, chunk_size={chunk_size}, "
+                #            f"Expected RoPE positions: [{chunk_idx * block_size}:{(chunk_idx + 1) * block_size})")
 
             # Forward pass
-            # For prefill (first chunk), don't use block_idx - rope_apply_one expects single-frame input with block_idx
-            # For chunk_prefill (subsequent chunks), block_idx is not used (rope_apply_chunk uses kv_num_block instead)
-            v_pred = self.forward_causal(
-                x=x_noised,
-                t=t_chunk,
+            # Scale timestep for model input: model expects t in [0, 1000]
+            t_model = t_chunk * 1000.0
+            
+            # Debug: Print KV cache state before forward
+            # kv_len_before = self.dit.kvcache_len()
+            # logger.info(f"KV_CACHE DEBUG [train forward_self_forcing:417]: Before forward - Chunk {chunk_idx}, "
+            #            f"kv_cache_len={kv_len_before}, x_noised.shape={x_noised.shape}, "
+            #            f"x_clean.shape={x_chunk.shape}, t_model={t_model.item() if isinstance(t_model, torch.Tensor) else t_model:.2f}, "
+            #            f"prefill={prefill}, chunk_prefill={chunk_prefill}, block_idx={None if prefill else chunk_idx}")
+            
+            # Step 1: Update KV cache with clean frames (matching inference behavior)
+            # This ensures training KV cache contains clean frames, same as inference
+            # For prefill, initialize KV cache with clean frames
+            # For subsequent chunks, update KV cache with clean frames
+            # kv_len_before_cache_update = self.dit.kvcache_len()
+            # logger.info(f"KV_CACHE DEBUG [train forward_self_forcing:cache_update]: Before KV cache update with clean frames - "
+            #            f"Chunk {chunk_idx}, kv_cache_len={kv_len_before_cache_update}, "
+            #            f"x_clean.shape={x_chunk.shape}, t=0.00 (clean frame), block_idx={None if prefill else chunk_idx}")
+            
+            # Update KV cache using clean frames and t=0 (matching inference: t=0 for clean frame KV cache update)
+            t_clean = torch.zeros_like(t_model) if isinstance(t_model, torch.Tensor) else 0.0
+            self.forward_causal(
+                x=x_chunk,  # Use clean frames, not noised frames
+                t=t_clean,  # Use t=0 for clean frame KV cache update
                 context=context,
                 attention_mask=attention_mask,
-                use_cache=True,
+                use_cache=True,  # Update KV cache with clean frames
                 prefill=prefill,
                 chunk_prefill=chunk_prefill,
                 block_idx=None if prefill else chunk_idx,
             )
+            
+            # Step 2: Compute prediction using noised frames (without updating KV cache)
+            # Now that KV cache contains clean frames, compute prediction with noised frames
+            v_pred = self.forward_causal(
+                x=x_noised,
+                t=t_model,
+                context=context,
+                attention_mask=attention_mask,
+                use_cache=False,  # Don't update KV cache (it already contains clean frames)
+                prefill=prefill,
+                chunk_prefill=chunk_prefill,
+                block_idx=None if prefill else chunk_idx,
+            )
+            
+            # Debug: Print KV cache state after update
+            # kv_len_after = self.dit.kvcache_len()
+            # logger.info(f"KV_CACHE DEBUG [train forward_self_forcing:433]: After KV cache update - Chunk {chunk_idx}, "
+            #            f"kv_cache_len={kv_len_after} (added {kv_len_after - kv_len_before_cache_update} tokens), "
+            #            f"NOTE: KV cache contains CLEAN frames (t=0), not noised frames!")
 
             all_v_pred.append(v_pred)
             all_v_target.append(v_target)
-
-            # Update KV cache with clean frames (teacher forcing)
-            # This is done inside the model during forward
 
         # Clean up cache after training step
         self.dit.clean_cache()
@@ -465,16 +519,34 @@ class WanModelCausalTrainingWrapper(nn.Module):
         seq_len: Optional[int] = None,
     ) -> torch.Tensor:
         """
-        Standard forward pass (non-causal, for compatibility).
+        Standard forward pass for training (non-self-forcing mode).
 
-        For causal training, use forward_self_forcing instead.
+        Uses prefill mode with causal attention mask to ensure correct
+        positional encoding for each frame. This matches how the eval
+        pipeline processes conditional frames.
+
+        Key: prefill=True ensures each frame gets correct RoPE position
+        (frame 0 -> pos 0, frame 1 -> pos 1, etc.) instead of all frames
+        getting position 0 when prefill=False and block_idx=None.
         """
+        B, C, T, H, W = x.shape
+        block_size = self.get_block_size(x.shape)
+
+        # Add debug print for standard forward (non-self-forcing mode)
+        # logger.info(f"BLOCK_IDX DEBUG [train forward:481]: "
+        #            f"Standard forward mode, prefill=True, block_idx=None, "
+        #            f"T={T}, block_size={block_size}, x.shape={x.shape}")
+
+        # Build causal attention mask for all frames (prefill mode)
+        attention_mask = self._build_causal_mask(x.shape, block_size, x.device)
+
         return self.forward_causal(
             x=x,
             t=t,
             context=context,
+            attention_mask=attention_mask,
             use_cache=False,
-            prefill=False,
+            prefill=True,  # Correct positional encoding for each frame
         )
 
     def get_trainable_parameters(self) -> List[nn.Parameter]:

@@ -240,8 +240,9 @@ def add_noise(x1: torch.Tensor, timestep: torch.Tensor) -> tuple[torch.Tensor, t
     # Expand timestep for broadcasting
     while timestep.dim() < x1.dim():
         timestep = timestep.unsqueeze(-1)
-
-    x_t = timestep * x1 + (1 - timestep) * x0
+    #!!! 
+    # x_t = timestep * x1 + (1 - timestep) * x0
+    x_t = (1 - timestep) * x1 + timestep * x0
     return x_t, x0
 
 
@@ -249,18 +250,29 @@ def sample_timestep(
     batch_size: int,
     device: torch.device,
     min_t: float = 0.0,
-    max_t: float = 1.0
+    max_t: float = 1.0,
+    num_train_timesteps: int = 1000
 ) -> torch.Tensor:
     """
     Sample random timesteps for training.
+    
+    IMPORTANT: Timesteps are scaled to [0, num_train_timesteps] to match inference.
+    This ensures the model sees the same timestep embedding space during training
+    and inference.
 
     Args:
         batch_size: Number of timesteps to sample
         device: Device to create tensor on
-        min_t: Minimum timestep value
-        max_t: Maximum timestep value
+        min_t: Minimum timestep value (in [0,1] normalized range)
+        max_t: Maximum timestep value (in [0,1] normalized range)
+        num_train_timesteps: Number of training timesteps (default 1000)
+                            Timesteps will be scaled to [0, num_train_timesteps]
 
     Returns:
-        Timestep tensor (B,)
+        Timestep tensor (B,) scaled to [0, num_train_timesteps]
     """
-    return torch.rand(batch_size, device=device) * (max_t - min_t) + min_t
+    # Sample in [0, 1] normalized range
+    t_normalized = torch.rand(batch_size, device=device) * (max_t - min_t) + min_t
+    # Scale to [0, num_train_timesteps] to match inference
+    t_scaled = t_normalized * num_train_timesteps
+    return t_scaled

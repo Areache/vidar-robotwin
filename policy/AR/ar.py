@@ -1254,24 +1254,45 @@ class AR:
             if not self.current_subgoals and self.first_frame_obs:
                 # 使用第一帧观察和instruction生成subgoals
                 self.current_subgoals = self.get_libero_subgoals_with_interval(
-                    self.first_frame_obs, 
+                    self.first_frame_obs,
                     self.prompt
                 )
                 self.subgoal_idx = 0
-            
-            # 根据当前帧数选择对应的subgoal（基于间隔8帧）
+
             # 当前帧数 = len(self.obs_cache) - 1（因为obs_cache包含当前帧）
             current_frame = len(self.obs_cache) - 1
-            subgoal_index = current_frame // self.subgoal_interval
-            
-            # 使用对应的subgoal
-            if self.current_subgoals and subgoal_index < len(self.current_subgoals):
-                subgoal_frames = [self.current_subgoals[subgoal_index]]
-                print(f"Using subgoal {subgoal_index + 1}/{len(self.current_subgoals)} (frame {current_frame}, interval={self.subgoal_interval})")
-            elif self.current_subgoals:
-                # 如果超出范围，使用最后一个subgoal
-                subgoal_frames = [self.current_subgoals[-1]]
-                print(f"Using last subgoal {len(self.current_subgoals)}/{len(self.current_subgoals)} (frame {current_frame} exceeds range)")
+
+            # 选择对应的subgoal
+            # 如果有GT keyframe indices（非均匀间隔），使用它们来选择subgoal
+            if hasattr(self, '_gt_keyframe_indices') and self._gt_keyframe_indices:
+                # 非均匀间隔：找到当前帧应该使用的subgoal
+                # 使用下一个keyframe作为目标（lookahead策略）
+                subgoal_index = 0
+                for i, kf_idx in enumerate(self._gt_keyframe_indices):
+                    if current_frame < kf_idx:
+                        # 当前帧还没到达这个keyframe，使用它作为目标
+                        subgoal_index = i
+                        break
+                    subgoal_index = i  # 已经超过了，使用最后一个
+
+                if self.current_subgoals and subgoal_index < len(self.current_subgoals):
+                    subgoal_frames = [self.current_subgoals[subgoal_index]]
+                    target_frame = self._gt_keyframe_indices[subgoal_index] if subgoal_index < len(self._gt_keyframe_indices) else "end"
+                    print(f"Using subgoal {subgoal_index + 1}/{len(self.current_subgoals)} (current={current_frame}, target={target_frame})")
+                elif self.current_subgoals:
+                    subgoal_frames = [self.current_subgoals[-1]]
+                    print(f"Using last subgoal {len(self.current_subgoals)}/{len(self.current_subgoals)} (frame {current_frame})")
+            else:
+                # 均匀间隔：使用原来的逻辑 current_frame // subgoal_interval
+                subgoal_index = current_frame // self.subgoal_interval
+
+                if self.current_subgoals and subgoal_index < len(self.current_subgoals):
+                    subgoal_frames = [self.current_subgoals[subgoal_index]]
+                    print(f"Using subgoal {subgoal_index + 1}/{len(self.current_subgoals)} (frame {current_frame}, interval={self.subgoal_interval})")
+                elif self.current_subgoals:
+                    # 如果超出范围，使用最后一个subgoal
+                    subgoal_frames = [self.current_subgoals[-1]]
+                    print(f"Using last subgoal {len(self.current_subgoals)}/{len(self.current_subgoals)} (frame {current_frame} exceeds range)")
         
         data = {
             "prompt": self.prompt, 
