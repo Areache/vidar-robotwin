@@ -1,0 +1,44 @@
+# GT Keyframe Subgoal Experiment Configuration
+
+# Video source directory
+# These are execution videos from successful demonstrations
+eval_result_dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal
+
+# Keyframe extraction settings
+extraction_strategy: uniform  # Options: uniform, visual_change
+
+# Uniform extraction settings
+keyframe_interval: 8  # Extract every N frames
+
+# Visual change detection settings (used when extraction_strategy: visual_change)
+visual_change_threshold: 0.05  # MSE threshold for detecting visual changes
+min_interval: 4  # Minimum frames between keyframes when using visual change
+
+# Maximum keyframes to extract per episode
+max_keyframes: 20
+
+# Caching settings
+use_cache: true
+cache_dir: null  # null = default (.keyframe_cache), or specify a path
+
+# Tasks to evaluate
+tasks:
+  - adjust_bottle
+
+# Vidar server settings
+vidar_port: 23456
+vidar_host: localhost
+
+# Evaluation settings
+num_episodes: 5
+seed: 42
+
+# Subgoal guidance settings (passed to Vidar server)
+subgoal_guidance_scale: 0.5
+
+# Logging settings
+log_keyframe_indices: true
+save_comparison_videos: true
+
+# HDF5 data location (for future gripper-based extraction)
+# hdf5_data_dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5

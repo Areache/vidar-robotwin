@@ -1,0 +1,396 @@
+Activating conda environment: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/self_forcing
+NCCL_TIMEOUT: 1800
+NCCL_IB_DISABLE: 0
+NCCL_P2P_LEVEL: NVL
+TORCH_DYNAMO_CACHE_SIZE_LIMIT: 128
+TIME_DEBUG: ENABLED (detailed timing instrumentation)
+Using shared storage vidar: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar
+PYTHONPATH: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin:/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar:/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/video-to-action-release/libero-0.1.0:
+==========================================
+Vidarc Stage 2 Training
+==========================================
+Config: configs/vidarc_2xh200_aligned.yaml
+Data directory: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+Checkpoint directory: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+Stage 1 weights: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+Output directory: ./output_vidarc
+GPUs: 2
+Batch size: 1 x 32 (effective: 64)
+Max steps: 4000
+==========================================
+
+Starting training...
+Log file: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/logs/training_output-20260204-172235.log
+
+Running on 2 GPUs with torchrun
+W0204 17:22:36.164000 17539 site-packages/torch/distributed/run.py:793] 
+W0204 17:22:36.164000 17539 site-packages/torch/distributed/run.py:793] *****************************************
+W0204 17:22:36.164000 17539 site-packages/torch/distributed/run.py:793] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0204 17:22:36.164000 17539 site-packages/torch/distributed/run.py:793] *****************************************
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/model_causal.py:18: UserWarning: using FA2
+  warnings.warn('using FA2')
+2026-02-04 17:22:40,500 - root - INFO - torch._dynamo cache_size_limit set to 64
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/model_causal.py:18: UserWarning: using FA2
+  warnings.warn('using FA2')
+2026-02-04 17:22:40,503 - root - INFO - torch._dynamo cache_size_limit set to 64
+2026-02-04 17:22:40,505 - __main__ - INFO - ============================================================
+2026-02-04 17:22:40,505 - __main__ - INFO - Vidarc Stage 2 Training: Causal Self-Forcing
+2026-02-04 17:22:40,505 - __main__ - INFO - ============================================================
+2026-02-04 17:22:40,505 - __main__ - INFO - World size: 2
+2026-02-04 17:22:40,505 - __main__ - INFO - Device: cuda:0
+2026-02-04 17:22:40,516 - __main__ - INFO - Saved config to output_vidarc/config.yaml
+2026-02-04 17:22:40,516 - __main__ - INFO - Creating Vidarc causal trainer...
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO - Training mode: Self-Forcing
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO - Self-Forcing Mode: SINGLE-STEP (original approach)
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO - Train-Eval Alignment: ENABLED
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO -   simulate_cache_pop=True
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO -   sink_frames=1
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO -   frames_per_round=4
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO -   shift=5.0
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO -   debug=False
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO - Setting up Vidarc causal trainer (Stage 2)...
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO - Building causal model...
+2026-02-04 17:22:40,516 - training.trainers.vidarc_trainer - INFO - Building WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-02-04 17:22:40,516 - training.models.wrapper_causal - INFO - Loading T5 encoder...
+2026-02-04 17:22:40,600 - training.trainers.vidarc_trainer - INFO - Training mode: Self-Forcing
+2026-02-04 17:22:40,600 - training.trainers.vidarc_trainer - INFO - Self-Forcing Mode: SINGLE-STEP (original approach)
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO - Train-Eval Alignment: ENABLED
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO -   simulate_cache_pop=True
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO -   sink_frames=1
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO -   frames_per_round=4
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO -   shift=5.0
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO -   debug=False
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO - Setting up Vidarc causal trainer (Stage 2)...
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO - Building causal model...
+2026-02-04 17:22:40,601 - training.trainers.vidarc_trainer - INFO - Building WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-02-04 17:22:40,601 - training.models.wrapper_causal - INFO - Loading T5 encoder...
+2026-02-04 17:23:11,772 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/t5.py:500: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+2026-02-04 17:23:11,811 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/t5.py:500: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+2026-02-04 17:23:47,331 - training.models.wrapper_causal - INFO - Loading VAE...
+2026-02-04 17:23:47,346 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/Wan2.2_VAE.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/vae2_2.py:889: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  torch.load(pretrained_path, map_location=device), assign=True)
+2026-02-04 17:23:47,354 - training.models.wrapper_causal - INFO - Loading VAE...
+2026-02-04 17:23:47,370 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/Wan2.2_VAE.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/vae2_2.py:889: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  torch.load(pretrained_path, map_location=device), assign=True)
+2026-02-04 17:23:55,088 - training.models.wrapper_causal - INFO - Loading WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-02-04 17:23:55,093 - training.models.wrapper_causal - INFO - Loading WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-02-04 17:24:12,573 - training.models.wrapper_causal - INFO - Loading Stage 1 weights from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/models/wrapper_causal.py:161: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(self.pt_dir, map_location="cpu")
+2026-02-04 17:24:12,583 - training.models.wrapper_causal - INFO - Loading Stage 1 weights from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/models/wrapper_causal.py:161: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(self.pt_dir, map_location="cpu")
+2026-02-04 17:25:50,772 - training.models.wrapper_causal - INFO - Freezing T5 encoder
+2026-02-04 17:25:50,774 - training.models.wrapper_causal - INFO - Freezing VAE
+2026-02-04 17:25:50,776 - training.trainers.vidarc_trainer - INFO - Wrapping DiT with FSDP...
+2026-02-04 17:25:50,780 - training.models.wrapper_causal - INFO - Freezing T5 encoder
+2026-02-04 17:25:50,782 - training.models.wrapper_causal - INFO - Freezing VAE
+2026-02-04 17:25:50,784 - training.trainers.vidarc_trainer - INFO - Wrapping DiT with FSDP...
+2026-02-04 17:26:02,153 - training.trainers.vidarc_trainer - INFO - Building optimizer and scheduler...
+2026-02-04 17:26:02,155 - training.trainers.vidarc_trainer - INFO - Trainable parameters: 2,499,893,856
+2026-02-04 17:26:02,156 - training.trainers.vidarc_trainer - INFO - Building dataloader...
+2026-02-04 17:26:02,156 - training.trainers.base - INFO - Using HDF5 dataset from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-02-04 17:26:02,156 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed/hdf5
+2026-02-04 17:26:02,157 - training.data.hdf5_dataset - INFO - Found 50 files matching 'episode_*.hdf5'
+2026-02-04 17:26:02,157 - training.data.hdf5_dataset - INFO - Found 50 episodes in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-02-04 17:26:02,160 - training.trainers.vidarc_trainer - INFO - Moving VAE to GPU for faster encoding
+2026-02-04 17:26:02,409 - training.trainers.vidarc_trainer - INFO - Building optimizer and scheduler...
+2026-02-04 17:26:02,411 - training.trainers.vidarc_trainer - INFO - Trainable parameters: 2,499,893,856
+2026-02-04 17:26:02,411 - training.trainers.vidarc_trainer - INFO - Building dataloader...
+2026-02-04 17:26:02,411 - training.trainers.base - INFO - Using HDF5 dataset from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-02-04 17:26:02,412 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed/hdf5
+2026-02-04 17:26:02,412 - training.data.hdf5_dataset - INFO - Found 50 files matching 'episode_*.hdf5'
+2026-02-04 17:26:02,412 - training.data.hdf5_dataset - INFO - Found 50 episodes in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-02-04 17:26:02,414 - training.trainers.vidarc_trainer - INFO - Moving VAE to GPU for faster encoding
+2026-02-04 17:26:03,170 - training.trainers.vidarc_trainer - INFO - Setup complete! Chunk size: 1
+2026-02-04 17:26:03,170 - training.trainers.base - INFO - Starting training for 4000 steps...
+2026-02-04 17:26:03,660 - training.trainers.vidarc_trainer - INFO - Setup complete! Chunk size: 1
+2026-02-04 17:26:03,660 - __main__ - INFO - ============================================================
+2026-02-04 17:26:03,660 - __main__ - INFO - Stage 2 Training Configuration:
+2026-02-04 17:26:03,660 - __main__ - INFO -   - Data dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-02-04 17:26:03,660 - __main__ - INFO -   - Checkpoint dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-02-04 17:26:03,660 - __main__ - INFO -   - Stage 1 weights: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+2026-02-04 17:26:03,660 - __main__ - INFO -   - Output dir: ./output_vidarc
+2026-02-04 17:26:03,660 - __main__ - INFO -   - Max steps: 4000
+2026-02-04 17:26:03,661 - __main__ - INFO -   - Batch size: 1 per GPU
+2026-02-04 17:26:03,661 - __main__ - INFO -   - Learning rate: 2e-05
+2026-02-04 17:26:03,661 - __main__ - INFO -   - Chunk size: 1
+2026-02-04 17:26:03,661 - __main__ - INFO -   - Embodiment loss: False (eta=3.0)
+2026-02-04 17:26:03,661 - __main__ - INFO -   - LoRA: disabled (full finetuning)
+2026-02-04 17:26:03,661 - __main__ - INFO - ============================================================
+2026-02-04 17:26:03,661 - training.trainers.base - INFO - Starting training for 4000 steps...
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:440: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:440: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:440: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:440: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+2026-02-04 17:42:30,920 - training.trainers.base - INFO - [Step 0/4000 (0.00%)] | Loss: 3.895065 | LR: 8.60e-07 | Elapsed: 00:16:27
+2026-02-04 17:42:30,927 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 1 steps, step 0):
+2026-02-04 17:42:30,931 - training.utils.timing - INFO -   - Backward: mean=0.8060s, min=0.8060s, max=0.8060s
+2026-02-04 17:42:30,931 - training.utils.timing - INFO -   - Cache Clean: mean=0.4268s, min=0.4268s, max=0.4268s
+2026-02-04 17:42:30,931 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8750s, min=0.8750s, max=0.8750s
+2026-02-04 17:42:30,931 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8855s, min=0.8855s, max=0.8855s
+2026-02-04 17:42:30,932 - training.utils.timing - INFO -   - Data Loading: mean=1.3658s, min=1.3658s, max=1.3658s
+2026-02-04 17:42:30,932 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 17:42:30,932 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 17:42:30,932 - training.utils.timing - INFO -   - Optimizer Step: mean=26.4912s, min=26.4912s, max=26.4912s
+2026-02-04 17:42:30,932 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.2802s, min=3.2802s, max=3.2802s
+2026-02-04 17:42:30,932 - training.utils.timing - INFO -   - Sync: mean=0.0007s, min=0.0007s, max=0.0007s
+2026-02-04 17:42:30,933 - training.utils.timing - INFO -   - T5 Encode: mean=11.9656s, min=11.9656s, max=11.9656s
+2026-02-04 17:42:30,933 - training.utils.timing - INFO -   - Total Step: mean=986.0759s, min=986.0759s, max=986.0759s
+2026-02-04 17:42:30,933 - training.utils.timing - INFO -   - VAE Encode: mean=0.1018s, min=0.1018s, max=0.1018s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 1 steps, step 0):
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Backward: mean=0.7849s, min=0.7849s, max=0.7849s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Cache Clean: mean=0.4337s, min=0.4337s, max=0.4337s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8736s, min=0.8736s, max=0.8736s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8869s, min=0.8869s, max=0.8869s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Data Loading: mean=1.7956s, min=1.7956s, max=1.7956s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Optimizer Step: mean=23.8495s, min=23.8495s, max=23.8495s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=5.9999s, min=5.9999s, max=5.9999s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Sync: mean=5.1257s, min=5.1257s, max=5.1257s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - T5 Encode: mean=11.8081s, min=11.8081s, max=11.8081s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - Total Step: mean=985.9243s, min=985.9243s, max=985.9243s
+2026-02-04 17:42:31,612 - training.utils.timing - INFO -   - VAE Encode: mean=0.1008s, min=0.1008s, max=0.1008s
+2026-02-04 17:51:32,097 - training.trainers.base - INFO - [Step 1/4000 (0.03%)] | Loss: 3.852912 | LR: 1.52e-06 | Elapsed: 00:25:28 | ETA: 1697:50:15
+2026-02-04 17:51:32,101 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 2 steps, step 1):
+2026-02-04 17:51:32,097 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 2 steps, step 1):
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Backward: mean=0.8002s, min=0.7966s, max=0.8038s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Backward: mean=0.7921s, min=0.7895s, max=0.7948s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Cache Clean: mean=0.5339s, min=0.4181s, max=0.6497s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8781s, min=0.8716s, max=0.8846s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8838s, min=0.8836s, max=0.8841s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Data Loading: mean=0.6830s, min=0.0002s, max=1.3658s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0010s, max=0.0011s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Cache Clean: mean=0.5235s, min=0.4179s, max=0.6292s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8777s, min=0.8709s, max=0.8844s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8833s, min=0.8831s, max=0.8834s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Data Loading: mean=0.8980s, min=0.0003s, max=1.7956s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Optimizer Step: mean=24.6946s, min=22.8981s, max=26.4912s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=4.2872s, min=3.7775s, max=4.7970s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Sync: mean=0.0007s, min=0.0006s, max=0.0007s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - T5 Encode: mean=11.1186s, min=11.1148s, max=11.1225s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Total Step: mean=763.6200s, min=541.1640s, max=986.0759s
+2026-02-04 17:51:32,102 - training.utils.timing - INFO -   - Optimizer Step: mean=21.8566s, min=19.8638s, max=23.8495s
+2026-02-04 17:51:32,103 - training.utils.timing - INFO -   - VAE Encode: mean=0.1019s, min=0.1017s, max=0.1021s
+2026-02-04 17:51:32,103 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.3437s, min=3.2378s, max=3.4495s
+2026-02-04 17:51:32,103 - training.utils.timing - INFO -   - Sync: mean=4.0804s, min=3.0352s, max=5.1257s
+2026-02-04 17:51:32,103 - training.utils.timing - INFO -   - T5 Encode: mean=12.0544s, min=11.4362s, max=12.6725s
+2026-02-04 17:51:32,103 - training.utils.timing - INFO -   - Total Step: mean=763.2045s, min=540.4848s, max=985.9243s
+2026-02-04 17:51:32,103 - training.utils.timing - INFO -   - VAE Encode: mean=0.1012s, min=0.1007s, max=0.1017s
+2026-02-04 18:00:35,004 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 3 steps, step 2):
+2026-02-04 18:00:35,008 - training.utils.timing - INFO -   - Backward: mean=0.7927s, min=0.7887s, max=0.7954s
+2026-02-04 18:00:35,009 - training.utils.timing - INFO -   - Cache Clean: mean=0.7390s, min=0.6944s, max=0.7771s
+2026-02-04 18:00:35,009 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8933s, min=0.8832s, max=0.9121s
+2026-02-04 18:00:35,009 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8882s, min=0.8782s, max=0.9066s
+2026-02-04 18:00:35,009 - training.utils.timing - INFO -   - Data Loading: mean=0.4554s, min=0.0002s, max=1.3658s
+2026-02-04 18:00:35,009 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0010s, max=0.0011s
+2026-02-04 18:00:35,009 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:00:35,009 - training.utils.timing - INFO -   - Optimizer Step: mean=24.2075s, min=22.8981s, max=26.4912s
+2026-02-04 18:00:35,008 - training.trainers.base - INFO - [Step 2/4000 (0.05%)] | Loss: 3.878942 | LR: 2.18e-06 | Elapsed: 00:34:31 | ETA: 1150:10:23
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.6183s, min=3.5271s, max=3.6917s
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - Sync: mean=0.0007s, min=0.0006s, max=0.0007s
+2026-02-04 18:00:35,012 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 3 steps, step 2):
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - Backward: mean=0.7992s, min=0.7861s, max=0.8061s
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - Cache Clean: mean=0.7232s, min=0.6877s, max=0.7672s
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - T5 Encode: mean=11.2122s, min=11.0762s, max=11.3613s
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - Total Step: mean=690.0468s, min=541.1640s, max=986.0759s
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.9461s, min=0.8845s, max=1.0411s
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8888s, min=0.8782s, max=0.9061s
+2026-02-04 18:00:35,012 - training.utils.timing - INFO -   - VAE Encode: mean=0.1016s, min=0.1013s, max=0.1022s
+2026-02-04 18:00:35,013 - training.utils.timing - INFO -   - Data Loading: mean=0.5987s, min=0.0002s, max=1.7956s
+2026-02-04 18:00:35,013 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 18:00:35,013 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:00:35,013 - training.utils.timing - INFO -   - Optimizer Step: mean=21.1479s, min=19.7304s, max=23.8495s
+2026-02-04 18:00:35,013 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.6575s, min=3.5906s, max=3.7648s
+2026-02-04 18:00:35,013 - training.utils.timing - INFO -   - Sync: mean=3.8872s, min=3.0352s, max=5.1257s
+2026-02-04 18:00:35,013 - training.utils.timing - INFO -   - T5 Encode: mean=11.1626s, min=11.1092s, max=11.2689s
+2026-02-04 18:00:35,013 - training.utils.timing - INFO -   - Total Step: mean=689.7715s, min=540.4848s, max=985.9243s
+2026-02-04 18:00:35,014 - training.utils.timing - INFO -   - VAE Encode: mean=0.1007s, min=0.1003s, max=0.1014s
+2026-02-04 18:09:37,570 - training.trainers.base - INFO - [Step 3/4000 (0.07%)] | Loss: 3.994943 | LR: 2.84e-06 | Elapsed: 00:43:33 | ETA: 967:23:18
+2026-02-04 18:09:37,574 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 4 steps, step 3):
+2026-02-04 18:09:37,574 - training.utils.timing - INFO -   - Backward: mean=0.7970s, min=0.7902s, max=0.8072s
+2026-02-04 18:09:37,574 - training.utils.timing - INFO -   - Cache Clean: mean=0.6461s, min=0.4935s, max=0.7901s
+2026-02-04 18:09:37,574 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8703s, min=0.8489s, max=0.8855s
+2026-02-04 18:09:37,575 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8909s, min=0.8663s, max=0.9277s
+2026-02-04 18:09:37,575 - training.utils.timing - INFO -   - Data Loading: mean=0.4491s, min=0.0002s, max=1.7956s
+2026-02-04 18:09:37,575 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 18:09:37,575 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:09:37,575 - training.utils.timing - INFO -   - Optimizer Step: mean=20.7573s, min=19.5856s, max=23.8495s
+2026-02-04 18:09:37,575 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.5542s, min=3.4065s, max=3.6256s
+2026-02-04 18:09:37,575 - training.utils.timing - INFO -   - Sync: mean=3.8130s, min=3.0352s, max=5.1257s
+2026-02-04 18:09:37,571 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 4 steps, step 3):
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Backward: mean=0.7993s, min=0.7936s, max=0.8075s
+2026-02-04 18:09:37,575 - training.utils.timing - INFO -   - T5 Encode: mean=11.1620s, min=11.0968s, max=11.2217s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Cache Clean: mean=0.6486s, min=0.5370s, max=0.7658s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Total Step: mean=652.9678s, min=540.4848s, max=985.9243s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8699s, min=0.8486s, max=0.8841s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8908s, min=0.8668s, max=0.9270s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Data Loading: mean=0.3416s, min=0.0002s, max=1.3658s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - VAE Encode: mean=0.1008s, min=0.1002s, max=0.1018s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0010s, max=0.0011s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Optimizer Step: mean=23.9500s, min=22.8981s, max=26.4912s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.4678s, min=3.3620s, max=3.5570s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Sync: mean=0.0006s, min=0.0006s, max=0.0007s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - T5 Encode: mean=11.2422s, min=11.1388s, max=11.4667s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - Total Step: mean=653.1747s, min=541.1640s, max=986.0759s
+2026-02-04 18:09:37,576 - training.utils.timing - INFO -   - VAE Encode: mean=0.1018s, min=0.1013s, max=0.1025s
+2026-02-04 18:18:42,341 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 5 steps, step 4):
+2026-02-04 18:18:42,342 - training.utils.timing - INFO -   - Backward: mean=0.7975s, min=0.7871s, max=0.8041s
+2026-02-04 18:18:42,342 - training.utils.timing - INFO -   - Cache Clean: mean=0.7239s, min=0.5462s, max=0.8761s
+2026-02-04 18:18:42,342 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8870s, min=0.8556s, max=0.9232s
+2026-02-04 18:18:42,342 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.9022s, min=0.8870s, max=0.9175s
+2026-02-04 18:18:42,342 - training.utils.timing - INFO -   - Data Loading: mean=0.2733s, min=0.0002s, max=1.3658s
+2026-02-04 18:18:42,342 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0010s, max=0.0011s
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - Optimizer Step: mean=23.7905s, min=22.8981s, max=26.4912s
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.6417s, min=3.5768s, max=3.7203s
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - Sync: mean=0.0006s, min=0.0006s, max=0.0007s
+2026-02-04 18:18:42,338 - training.trainers.base - INFO - [Step 4/4000 (0.10%)] | Loss: 3.932842 | LR: 3.50e-06 | Elapsed: 00:52:38 | ETA: 876:31:58
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - T5 Encode: mean=11.3611s, min=11.1191s, max=11.5152s
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - Total Step: mean=631.4925s, min=541.1640s, max=986.0759s
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - VAE Encode: mean=0.1020s, min=0.1012s, max=0.1038s
+2026-02-04 18:18:42,343 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 5 steps, step 4):
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - Backward: mean=0.7972s, min=0.7937s, max=0.7997s
+2026-02-04 18:18:42,343 - training.utils.timing - INFO -   - Cache Clean: mean=0.7316s, min=0.5619s, max=0.8473s
+2026-02-04 18:18:42,344 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8874s, min=0.8561s, max=0.9242s
+2026-02-04 18:18:42,344 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.9017s, min=0.8872s, max=0.9175s
+2026-02-04 18:18:42,344 - training.utils.timing - INFO -   - Data Loading: mean=0.3593s, min=0.0002s, max=1.7956s
+2026-02-04 18:18:42,344 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 18:18:42,344 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:18:42,344 - training.utils.timing - INFO -   - Optimizer Step: mean=20.5739s, min=19.5856s, max=23.8495s
+2026-02-04 18:18:42,345 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.5460s, min=3.4173s, max=3.6009s
+2026-02-04 18:18:42,345 - training.utils.timing - INFO -   - Sync: mean=3.7129s, min=3.0352s, max=5.1257s
+2026-02-04 18:18:42,345 - training.utils.timing - INFO -   - T5 Encode: mean=11.4591s, min=11.4134s, max=11.5178s
+2026-02-04 18:18:42,345 - training.utils.timing - INFO -   - Total Step: mean=631.3268s, min=540.4848s, max=985.9243s
+2026-02-04 18:18:42,345 - training.utils.timing - INFO -   - VAE Encode: mean=0.1011s, min=0.1005s, max=0.1021s
+2026-02-04 18:27:45,268 - training.trainers.base - INFO - [Step 5/4000 (0.12%)] | Loss: 3.851013 | LR: 4.16e-06 | Elapsed: 01:01:41 | ETA: 821:33:04
+2026-02-04 18:27:45,272 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 6 steps, step 5):
+2026-02-04 18:27:45,272 - training.utils.timing - INFO -   - Backward: mean=0.8006s, min=0.7945s, max=0.8047s
+2026-02-04 18:27:45,272 - training.utils.timing - INFO -   - Cache Clean: mean=0.5891s, min=0.4775s, max=0.7129s
+2026-02-04 18:27:45,272 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8806s, min=0.8656s, max=0.8926s
+2026-02-04 18:27:45,272 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8880s, min=0.8708s, max=0.9157s
+2026-02-04 18:27:45,272 - training.utils.timing - INFO -   - Data Loading: mean=0.2995s, min=0.0002s, max=1.7956s
+2026-02-04 18:27:45,272 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 18:27:45,272 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:27:45,273 - training.utils.timing - INFO -   - Optimizer Step: mean=20.3721s, min=19.3631s, max=23.8495s
+2026-02-04 18:27:45,273 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.6039s, min=3.5268s, max=3.7043s
+2026-02-04 18:27:45,273 - training.utils.timing - INFO -   - Sync: mean=3.7603s, min=3.0352s, max=5.1257s
+2026-02-04 18:27:45,273 - training.utils.timing - INFO -   - T5 Encode: mean=11.2014s, min=11.1204s, max=11.3171s
+2026-02-04 18:27:45,273 - training.utils.timing - INFO -   - Total Step: mean=616.5930s, min=540.4848s, max=985.9243s
+2026-02-04 18:27:45,273 - training.utils.timing - INFO -   - VAE Encode: mean=0.1009s, min=0.1002s, max=0.1021s
+2026-02-04 18:27:45,272 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 6 steps, step 5):
+2026-02-04 18:27:45,276 - training.utils.timing - INFO -   - Backward: mean=0.8002s, min=0.7886s, max=0.8245s
+2026-02-04 18:27:45,276 - training.utils.timing - INFO -   - Cache Clean: mean=0.5854s, min=0.4302s, max=0.7164s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8801s, min=0.8655s, max=0.8910s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8884s, min=0.8711s, max=0.9148s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Data Loading: mean=0.2278s, min=0.0002s, max=1.3658s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0010s, max=0.0011s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Optimizer Step: mean=23.7192s, min=22.8981s, max=26.4912s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.3857s, min=3.2752s, max=3.4973s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Sync: mean=0.0006s, min=0.0006s, max=0.0007s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - T5 Encode: mean=11.4192s, min=11.2498s, max=11.6056s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - Total Step: mean=616.7318s, min=541.1640s, max=986.0759s
+2026-02-04 18:27:45,277 - training.utils.timing - INFO -   - VAE Encode: mean=0.1021s, min=0.1016s, max=0.1036s
+2026-02-04 18:36:51,182 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 7 steps, step 6):
+2026-02-04 18:36:51,184 - training.utils.timing - INFO -   - Backward: mean=0.8013s, min=0.7936s, max=0.8136s
+2026-02-04 18:36:51,184 - training.utils.timing - INFO -   - Cache Clean: mean=0.7850s, min=0.6275s, max=0.9491s
+2026-02-04 18:36:51,184 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8786s, min=0.8560s, max=0.9193s
+2026-02-04 18:36:51,184 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8932s, min=0.8684s, max=0.9138s
+2026-02-04 18:36:51,184 - training.utils.timing - INFO -   - Data Loading: mean=0.1953s, min=0.0002s, max=1.3658s
+2026-02-04 18:36:51,184 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0010s, max=0.0011s
+2026-02-04 18:36:51,184 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:36:51,185 - training.utils.timing - INFO -   - Optimizer Step: mean=23.6551s, min=22.8981s, max=26.4912s
+2026-02-04 18:36:51,185 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.6532s, min=3.4566s, max=3.9776s
+2026-02-04 18:36:51,185 - training.utils.timing - INFO -   - Sync: mean=0.0006s, min=0.0006s, max=0.0007s
+2026-02-04 18:36:51,185 - training.utils.timing - INFO -   - T5 Encode: mean=11.2874s, min=11.0307s, max=11.4128s
+2026-02-04 18:36:51,185 - training.utils.timing - INFO -   - Total Step: mean=606.6136s, min=541.1640s, max=986.0759s
+2026-02-04 18:36:51,185 - training.utils.timing - INFO -   - VAE Encode: mean=0.1016s, min=0.1012s, max=0.1018s
+2026-02-04 18:36:51,182 - training.trainers.base - INFO - [Step 6/4000 (0.15%)] | Loss: 3.906114 | LR: 4.82e-06 | Elapsed: 01:10:47 | ETA: 785:23:53
+2026-02-04 18:36:51,185 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 7 steps, step 6):
+2026-02-04 18:36:51,186 - training.utils.timing - INFO -   - Backward: mean=0.7961s, min=0.7893s, max=0.8055s
+2026-02-04 18:36:51,186 - training.utils.timing - INFO -   - Cache Clean: mean=0.8076s, min=0.6127s, max=0.9661s
+2026-02-04 18:36:51,186 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8785s, min=0.8564s, max=0.9194s
+2026-02-04 18:36:51,186 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.8950s, min=0.8771s, max=0.9145s
+2026-02-04 18:36:51,186 - training.utils.timing - INFO -   - Data Loading: mean=0.2567s, min=0.0002s, max=1.7956s
+2026-02-04 18:36:51,186 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 18:36:51,186 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:36:51,187 - training.utils.timing - INFO -   - Optimizer Step: mean=20.2582s, min=19.3631s, max=23.8495s
+2026-02-04 18:36:51,187 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.7182s, min=3.6238s, max=3.8500s
+2026-02-04 18:36:51,187 - training.utils.timing - INFO -   - Sync: mean=3.7508s, min=3.0352s, max=5.1257s
+2026-02-04 18:36:51,187 - training.utils.timing - INFO -   - T5 Encode: mean=11.2306s, min=11.1108s, max=11.3723s
+2026-02-04 18:36:51,187 - training.utils.timing - INFO -   - Total Step: mean=606.4953s, min=540.4848s, max=985.9243s
+2026-02-04 18:36:51,187 - training.utils.timing - INFO -   - VAE Encode: mean=0.1011s, min=0.1003s, max=0.1023s
+2026-02-04 18:45:53,426 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 8 steps, step 7):
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Backward: mean=0.8105s, min=0.7902s, max=0.8900s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Cache Clean: mean=0.6082s, min=0.4091s, max=0.7661s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8879s, min=0.8533s, max=0.9036s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.9283s, min=0.8803s, max=1.1918s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Data Loading: mean=0.1709s, min=0.0002s, max=1.3658s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0010s, max=0.0011s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Optimizer Step: mean=23.6230s, min=22.8981s, max=26.4912s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.4712s, min=3.1761s, max=3.8934s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Sync: mean=0.0006s, min=0.0006s, max=0.0007s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - T5 Encode: mean=11.4442s, min=11.2488s, max=11.7585s
+2026-02-04 18:45:53,427 - training.utils.timing - INFO -   - Total Step: mean=598.5670s, min=541.1640s, max=986.0759s
+2026-02-04 18:45:53,428 - training.utils.timing - INFO -   - VAE Encode: mean=0.1017s, min=0.1011s, max=0.1025s
+2026-02-04 18:45:53,424 - training.trainers.base - INFO - [Step 7/4000 (0.18%)] | Loss: 3.905320 | LR: 5.48e-06 | Elapsed: 01:19:49 | ETA: 758:56:57
+2026-02-04 18:45:53,428 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 8 steps, step 7):
+2026-02-04 18:45:53,428 - training.utils.timing - INFO -   - Backward: mean=0.8046s, min=0.7883s, max=0.8909s
+2026-02-04 18:45:53,429 - training.utils.timing - INFO -   - Cache Clean: mean=0.6170s, min=0.4351s, max=0.7857s
+2026-02-04 18:45:53,429 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8878s, min=0.8529s, max=0.9029s
+2026-02-04 18:45:53,429 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.9286s, min=0.8819s, max=1.1914s
+2026-02-04 18:45:53,429 - training.utils.timing - INFO -   - Data Loading: mean=0.2247s, min=0.0002s, max=1.7956s
+2026-02-04 18:45:53,429 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 18:45:53,430 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:45:53,430 - training.utils.timing - INFO -   - Optimizer Step: mean=20.1652s, min=19.3631s, max=23.8495s
+2026-02-04 18:45:53,430 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.7287s, min=3.5827s, max=4.1169s
+2026-02-04 18:45:53,430 - training.utils.timing - INFO -   - Sync: mean=3.7680s, min=3.0352s, max=5.1257s
+2026-02-04 18:45:53,430 - training.utils.timing - INFO -   - T5 Encode: mean=11.1918s, min=11.0849s, max=11.3077s
+2026-02-04 18:45:53,430 - training.utils.timing - INFO -   - Total Step: mean=598.4630s, min=540.4848s, max=985.9243s
+2026-02-04 18:45:53,430 - training.utils.timing - INFO -   - VAE Encode: mean=0.1009s, min=0.1002s, max=0.1020s
+2026-02-04 18:54:59,319 - training.trainers.base - INFO - [Step 8/4000 (0.20%)] | Loss: 3.949151 | LR: 6.14e-06 | Elapsed: 01:28:55 | ETA: 739:34:53
+2026-02-04 18:54:59,323 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 9 steps, step 8):
+2026-02-04 18:54:59,323 - training.utils.timing - INFO -   - Backward: mean=0.8033s, min=0.7941s, max=0.8203s
+2026-02-04 18:54:59,323 - training.utils.timing - INFO -   - Cache Clean: mean=0.7546s, min=0.4154s, max=1.1377s
+2026-02-04 18:54:59,323 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8751s, min=0.8475s, max=0.9194s
+2026-02-04 18:54:59,323 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.9020s, min=0.8529s, max=1.0617s
+2026-02-04 18:54:59,324 - training.utils.timing - INFO -   - Data Loading: mean=0.1997s, min=0.0002s, max=1.7956s
+2026-02-04 18:54:59,324 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0011s, max=0.0011s
+2026-02-04 18:54:59,324 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:54:59,324 - training.utils.timing - INFO -   - Optimizer Step: mean=20.0910s, min=19.3631s, max=23.8495s
+2026-02-04 18:54:59,324 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.5962s, min=3.2746s, max=3.8754s
+2026-02-04 18:54:59,324 - training.utils.timing - INFO -   - Sync: mean=3.7865s, min=3.0352s, max=5.1257s
+2026-02-04 18:54:59,324 - training.utils.timing - INFO -   - T5 Encode: mean=11.5011s, min=10.9894s, max=13.1702s
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - Total Step: mean=592.6215s, min=540.4848s, max=985.9243s
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - VAE Encode: mean=0.1007s, min=0.1003s, max=0.1018s
+2026-02-04 18:54:59,321 - training.utils.timing - INFO - [TIME_DEBUG] Stats (last 9 steps, step 8):
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - Backward: mean=0.8018s, min=0.7870s, max=0.8316s
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - Cache Clean: mean=0.7577s, min=0.4218s, max=1.1238s
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - Chunk 1 (cache): mean=0.8751s, min=0.8489s, max=0.9200s
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - Chunk 2 (cache): mean=0.9020s, min=0.8530s, max=1.0623s
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - Data Loading: mean=0.1519s, min=0.0002s, max=1.3658s
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - Data Transfer: mean=0.0011s, min=0.0010s, max=0.0011s
+2026-02-04 18:54:59,325 - training.utils.timing - INFO -   - Loss Computation: mean=0.0001s, min=0.0001s, max=0.0001s
+2026-02-04 18:54:59,326 - training.utils.timing - INFO -   - Optimizer Step: mean=23.6020s, min=22.8981s, max=26.4912s
+2026-02-04 18:54:59,326 - training.utils.timing - INFO -   - Self-Forcing Forward: mean=3.9366s, min=3.6318s, max=5.2759s
+2026-02-04 18:54:59,326 - training.utils.timing - INFO -   - Sync: mean=0.0006s, min=0.0006s, max=0.0007s
+2026-02-04 18:54:59,326 - training.utils.timing - INFO -   - T5 Encode: mean=11.1613s, min=10.9186s, max=11.3208s
+2026-02-04 18:54:59,326 - training.utils.timing - INFO -   - Total Step: mean=592.7143s, min=541.1640s, max=986.0759s
+2026-02-04 18:54:59,326 - training.utils.timing - INFO -   - VAE Encode: mean=0.1016s, min=0.1009s, max=0.1026s

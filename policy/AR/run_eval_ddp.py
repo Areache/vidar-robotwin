@@ -223,6 +223,14 @@ def run_client_task(task_name: str, args, port: int, output_dir_base: str, local
         cmd.extend(["--mpc_num_candidates", str(args.mpc_num_candidates)])
     if args.mpc_cost_weights is not None:
         cmd.extend(["--mpc_cost_weights", args.mpc_cost_weights])
+    # Add GT keyframe parameters if enabled
+    if args.use_gt_keyframes and args.use_gt_keyframes.lower() == "true":
+        cmd.extend(["--use_gt_keyframes", "True"])
+        if args.gt_keyframe_dir:
+            cmd.extend(["--gt_keyframe_dir", args.gt_keyframe_dir])
+        cmd.extend(["--gt_keyframe_strategy", args.gt_keyframe_strategy])
+        cmd.extend(["--gt_keyframe_interval", str(args.gt_keyframe_interval)])
+        cmd.extend(["--gt_max_keyframes", str(args.gt_max_keyframes)])
     logger.info(" ".join(cmd))
     logger.info(f"Running Task: {task_name}")
     env = os.environ.copy()
@@ -396,6 +404,12 @@ def main():
     parser.add_argument("--num_vid_pred_per_ep", type=int, default=5, help="Number of video predictions per episode")
     parser.add_argument("--video_model_config_path", type=str, default="../vidar/vm/config/libero/lb_tk8_65to72.py", help="Video model config file path (e.g., ../vidar/vm/config/libero/lb_tk8_65to72.py)")
     parser.add_argument("--interactive_debug", type=bool, default=True, help="Enable interactive debug mode (pdb output to terminal, not log file)")
+    # GT keyframe parameters (for oracle subgoal evaluation)
+    parser.add_argument("--use_gt_keyframes", type=str, default="False", help="Enable GT keyframe injection (True/False)")
+    parser.add_argument("--gt_keyframe_dir", type=str, default=None, help="Directory containing GT demo videos for keyframe extraction")
+    parser.add_argument("--gt_keyframe_strategy", type=str, default="uniform", help="Keyframe extraction strategy: uniform, gripper, milestone, visual")
+    parser.add_argument("--gt_keyframe_interval", type=int, default=8, help="Frame interval for uniform strategy")
+    parser.add_argument("--gt_max_keyframes", type=int, default=20, help="Maximum number of keyframes to extract")
     args = parser.parse_args()
     
     

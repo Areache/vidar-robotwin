@@ -6,11 +6,11 @@ model:
   ckpt_dir: checkpoints/Wan2.2-TI2V-5B
   pt_dir: checkpoints/vidar/vidar.pt
   model_class: WanModelCausal
-  gradient_checkpointing: true
+  gradient_checkpointing: false
 
 training:
   num_steps: 4000
-  batch_size: 16                    # 8 per GPU
+  batch_size: 1                   # 8 per GPU
   gradient_accumulation: 8          # Effective batch = 128
   lr: 2.0e-5
   weight_decay: 0.1
@@ -25,12 +25,15 @@ training:
 
 data:
   data_dir: data/robotwin
-  num_frames: 81
+  num_frames: 16  # 81
   resolution: [736, 640]
   fps: 10
-  num_workers: 4
+  num_workers: 2
   pin_memory: true
   cfg_prob: 0.1
+  prefetch_factor: 1       # Prefetch more batches
+  persistent_workers: true # Keep workers alive between epochs
+  pin_memory: true
 
 loss:
   type: causal_flow_matching
@@ -40,27 +43,40 @@ loss:
 self_forcing:
   enabled: true
   causal: true
-  chunk_size: 8                     # Reduced from 16 for memory
+  chunk_size: 1                     # Reduced from 16 for memory
   kv_cache_length: 64
   same_step_across_blocks: true
+
+# LoRA (Low-Rank Adaptation) - enable for memory-efficient finetuning
+# Reduces trainable parameters by ~98%, VRAM by ~75%
+lora:
+  enabled: false                    # Set to true to enable LoRA
+  rank: 32                          # LoRA rank (higher = more capacity, more memory)
+  alpha: 32                         # Scaling factor (usually same as rank)
+  dropout: 0.0                      # LoRA dropout
+  target_modules:                   # Modules to apply LoRA to
+    - q
+    - k
+    - v
+    - o
 
 distributed:
   use_fsdp: true
   sharding_strategy: FULL_SHARD     # Max memory efficiency
   mixed_precision: bf16
   activation_checkpointing: true
-  cpu_offload: false                # Enable if OOM
+  cpu_offload: true                # Enable if OOM
 
 logging:
   output_dir: outputs/vidarc_2xh200
-  log_interval: 50
-  save_interval: 500
-  eval_interval: 1000
+  log_interval: 1
+  save_interval: 50
+  eval_interval: 500
   use_wandb: true
   wandb_project: vidarc-training
 
 output:
-  save_path: checkpoints/vidar/vidarc.pt
+  save_path: checkpoints/vidar/vidarc_2x_sf.pt
   save_optimizer: true
   save_scheduler: true
 

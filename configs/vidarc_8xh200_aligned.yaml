@@ -1,0 +1,110 @@
+# Stage 2: Vidarc causal training - ALIGNED with eval behavior
+# Model: WanModelCausal
+# Loss: Causal flow matching + embodiment-aware
+#
+# This config uses the aligned self-forcing functions that match eval's:
+# - Cache pop simulation (keeps only sink frame)
+# - chunk_prefill mode after cache pop
+# - Relative RoPE positioning via kv_num_block
+# - Sink + causal attention mask
+
+model:
+  ckpt_dir: checkpoints/Wan2.2-TI2V-5B
+  pt_dir: checkpoints/vidar/vidar.pt
+  model_class: WanModelCausal
+  gradient_checkpointing: false
+
+training:
+  num_steps: 4000
+  batch_size: 1                   # 1 per GPU
+  gradient_accumulation: 2        # Effective batch = 16 (8 GPUs x 1 x 2)
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  lr: 1.0e-5
+  warmup_steps: 30
+  scheduler: cosine
+  freeze:
+    - t5
+    - vae
+
+data:
+  data_dir:
+    - /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+    - /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+  num_frames: 13                  # 9 latent frames = 2 full rounds (1 sink + 4 + 4)
+  resolution: [736, 640]
+  fps: 10
+  num_workers: 4
+  pin_memory: true
+  cfg_prob: 0.1
+  prefetch_factor: 8
+  persistent_workers: true
+
+loss:
+  type: causal_flow_matching
+  embodiment_aware: true
+  eta: 3.0
+  # timestep_shift: 5.0             # Match eval's shift value
+
+# Self-forcing with train-eval alignment
+self_forcing:
+  enabled: true
+  causal: true
+  use_aligned: true               # Use forward_self_forcing_aligned() instead of forward_self_forcing()
+
+  # Alignment parameters (match eval behavior)
+  simulate_cache_pop: true        # Enable cache pop simulation
+  sink_frames: 1                  # Keep first frame as sink after pop
+  frames_per_round: 4             # Frames per round before cache pop
+
+  # Multi-step denoising (for forward_self_forcing_multistep_aligned)
+  # multistep: false                # Set true to use multistep version
+  mode: "single_step"
+  num_inference_steps: 10         # Denoising steps (match eval)
+  shift: 5.0                      # Timestep shift (match eval)
+  context_noise: 0.0              # Noise for context frames
+
+  # Basic settings
+  chunk_size: 1                   # Per-frame processing
+  # same_t_across_chunks: true
+  same_step_across_blocks: true
+
+  # Debug
+  debug: false                    # Set true for [TRAIN_ALIGNED] prints
+
+distributed:
+  use_fsdp: true
+  sharding_strategy: FULL_SHARD
+  mixed_precision: bf16
+  activation_checkpointing: false
+  cpu_offload: true
+
+logging:
+  output_dir: outputs/vidarc_8xh200_aligned
+  log_interval: 2
+  save_interval: 20
+  eval_interval: 500
+  use_wandb: true
+  wandb_project: vidarc-training
+  wandb_run_id: null
+
+output:
+  save_path: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/checkpoints/vidarc_8x_aligned.pt
+  save_optimizer: true
+  save_scheduler: true
+  resume: null
+
+evaluation:
+  enabled: true
+  run_after_save: false
+  task_name: adjust_bottle
+  task_config: hd_clean
+  idm_path: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/idm.pt
+  num_new_frames: 16
+  num_sampling_steps: 10
+  cfg_scale: 3.0
+  prefix: ""
+
+seed: 42

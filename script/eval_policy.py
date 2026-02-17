@@ -5,8 +5,24 @@ import subprocess
 sys.path.append("./")
 sys.path.append(f"./policy")
 sys.path.append("./description/utils")
+sys.path.append("./experiments/gt_keyframe_test")
 from envs import CONFIGS_PATH
 from envs.utils.create_actor import UnStableError
+
+# GT Keyframe imports
+try:
+    from extract_keyframes import (
+        extract_keyframes_uniform,
+        extract_keyframes_visual_change,
+        extract_keyframes_gripper_change,
+        extract_keyframes_action_milestone,
+        extract_keyframes_semantic,
+        get_cache
+    )
+    GT_KEYFRAME_AVAILABLE = True
+except ImportError:
+    GT_KEYFRAME_AVAILABLE = False
+    print("Warning: GT keyframe module not available")
 
 import numpy as np
 from pathlib import Path
@@ -170,6 +186,30 @@ def main(usr_args):
     topk = 1
 
     model = get_model(usr_args)
+
+    # GT Keyframe configuration
+    gt_keyframe_config = None
+    if usr_args.get("use_gt_keyframes", False) and GT_KEYFRAME_AVAILABLE:
+        gt_keyframe_config = {
+            "eval_result_dir": usr_args.get("gt_keyframe_dir",
+                "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal"),
+            # Extraction strategy:
+            # - "uniform": Fixed interval extraction (default)
+            # - "gripper": Extract at gripper state changes (requires HDF5)
+            # - "milestone": Extract at motion start/stop (requires HDF5)
+            # - "visual": Extract at visual change moments
+            "strategy": usr_args.get("gt_keyframe_strategy", "uniform"),
+            "interval": usr_args.get("gt_keyframe_interval", 8),  # For uniform strategy
+            "max_keyframes": usr_args.get("gt_max_keyframes", 20),
+            # HDF5 data directory (for gripper/milestone strategies)
+            "hdf5_dir": usr_args.get("gt_hdf5_dir",
+                "/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5"),
+            # Gripper detection threshold
+            "gripper_threshold": usr_args.get("gt_gripper_threshold", 0.3),
+        }
+        clean_print(f"\033[95mGT Keyframes Enabled:\033[0m strategy={gt_keyframe_config['strategy']}, "
+                    f"max={gt_keyframe_config['max_keyframes']}")
+
     st_seed, suc_num = eval_policy(task_name,
                                    TASK_ENV,
                                    args,
@@ -177,7 +217,8 @@ def main(usr_args):
                                    st_seed,
                                    test_num=test_num,
                                    video_size=video_size,
-                                   instruction_type=instruction_type)
+                                   instruction_type=instruction_type,
+                                   gt_keyframe_config=gt_keyframe_config)
     suc_nums.append(suc_num)
 
     topk_success_rate = sorted(suc_nums, reverse=True)[:topk]
@@ -200,9 +241,13 @@ def eval_policy(task_name,
                 st_seed,
                 test_num=100,
                 video_size=None,
-                instruction_type=None):
+                instruction_type=None,
+                gt_keyframe_config=None):
     clean_print(f"\033[34mTask Name: {args['task_name']}\033[0m")
     clean_print(f"\033[34mPolicy Name: {args['policy_name']}\033[0m")
+
+    # Initialize GT keyframe cache if enabled
+    gt_cache = get_cache() if (gt_keyframe_config and GT_KEYFRAME_AVAILABLE) else None
 
     expert_check = True
     TASK_ENV.suc = 0
@@ -297,6 +342,86 @@ def eval_policy(task_name,
 
         succ = False
         reset_func(model)
+
+        # Inject GT keyframes if enabled
+        if gt_keyframe_config and GT_KEYFRAME_AVAILABLE:
+            video_path = os.path.join(
+                gt_keyframe_config["eval_result_dir"],
+                task_name,
+                f"episode{TASK_ENV.test_num}.mp4"
+            )
+            if os.path.exists(video_path):
+                strategy = gt_keyframe_config.get("strategy", "uniform")
+                max_kf = gt_keyframe_config["max_keyframes"]
+
+                # Extract keyframes based on strategy
+                if strategy == "semantic":
+                    # Video-only semantic extraction (motion stops + visual changes)
+                    keyframes = extract_keyframes_semantic(
+                        video_path,
+                        motion_threshold=0.01,
+                        change_threshold=0.02,
+                        min_interval=5,
+                        max_keyframes=max_kf,
+                        use_cache=True,
+                        cache=gt_cache
+                    )
+                elif strategy == "visual":
+                    # Visual change based extraction
+                    keyframes = extract_keyframes_visual_change(
+                        video_path,
+                        threshold=0.03,
+                        min_interval=4,
+                        max_keyframes=max_kf,
+                        use_cache=True,
+                        cache=gt_cache
+                    )
+                elif strategy == "gripper":
+                    # Gripper state change extraction (requires HDF5)
+                    hdf5_path = os.path.join(
+                        gt_keyframe_config.get("hdf5_dir", ""),
+                        task_name,
+                        f"episode_{TASK_ENV.test_num:06d}.hdf5"
+                    )
+                    keyframes = extract_keyframes_gripper_change(
+                        video_path,
+                        hdf5_path=hdf5_path,
+                        threshold=gt_keyframe_config.get("gripper_threshold", 0.3),
+                        max_keyframes=max_kf,
+                        use_cache=True,
+                        cache=gt_cache
+                    )
+                else:
+                    # Default: uniform extraction
+                    keyframes = extract_keyframes_uniform(
+                        video_path,
+                        interval=gt_keyframe_config["interval"],
+                        max_keyframes=max_kf,
+                        use_cache=True,
+                        cache=gt_cache
+                    )
+
+                if keyframes:
+                    # For semantic keyframes, we need dynamic subgoal selection
+                    # Store frame indices for proper mapping
+                    model.current_subgoals = [kf.image_b64 for kf in keyframes]
+                    model._gt_keyframe_indices = [kf.frame_index for kf in keyframes]
+                    model.use_libero_subgoal = True
+                    model.libero_use_direct_model = False
+
+                    # For non-uniform strategies, use first keyframe interval as subgoal_interval
+                    if strategy in ("semantic", "visual", "gripper") and len(keyframes) > 1:
+                        avg_interval = (keyframes[-1].frame_index - keyframes[0].frame_index) // (len(keyframes) - 1)
+                        model.subgoal_interval = max(1, avg_interval)
+                    else:
+                        model.subgoal_interval = gt_keyframe_config.get("interval", 8)
+
+                    clean_print(f"\033[95mInjected {len(keyframes)} GT keyframes ({strategy})\033[0m")
+                    clean_print(f"  Frames: {[kf.frame_index for kf in keyframes]}")
+                    clean_print(f"  Subgoal interval: {model.subgoal_interval}")
+            else:
+                clean_print(f"\033[93mWarning: GT video not found: {video_path}\033[0m")
+
         while TASK_ENV.take_action_cnt < TASK_ENV.step_lim:
             observation = TASK_ENV.get_obs()
             eval_func(TASK_ENV, model, observation)

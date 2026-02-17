@@ -1,0 +1,32 @@
+[
+  {
+    "subgoal_id": 1,
+    "subgoal_name": "bowl_A_grasped",
+    "semantic_image_description": "The robot gripper is holding bowl {A}, lifted above the table surface. Bowl {B} remains on the table in its original position.",
+    "key_conditions": [
+      "Bowl {A} is gripped by the robot",
+      "Bowl {A} is elevated from the table",
+      "Bowl {B} is stationary on the table"
+    ]
+  },
+  {
+    "subgoal_id": 2,
+    "subgoal_name": "bowl_A_positioned_above_B",
+    "semantic_image_description": "Bowl {A} is held by the robot gripper, positioned directly above bowl {B}. Both bowls are aligned vertically.",
+    "key_conditions": [
+      "Bowl {A} is above bowl {B}",
+      "Bowls are vertically aligned",
+      "Bowl {B} is on the table"
+    ]
+  },
+  {
+    "subgoal_id": 3,
+    "subgoal_name": "bowl_A_stacked_on_B",
+    "semantic_image_description": "Bowl {A} is resting on top of bowl {B}, forming a stable stack. The robot gripper has released bowl {A}.",
+    "key_conditions": [
+      "Bowl {A} is on top of bowl {B}",
+      "Stack is stable",
+      "Robot gripper is open/released"
+    ]
+  }
+]

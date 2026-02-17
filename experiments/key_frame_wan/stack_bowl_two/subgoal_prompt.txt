@@ -1,0 +1,36 @@
+You are given a manipulation instruction and its metadata.
+
+Instruction goal:
+"stack the two bowls on top of each other"
+
+Object binding:
+- {A} refers to the first bowl
+- {B} refers to the second bowl
+
+Important:
+- Do NOT paraphrase or rewrite the instruction.
+- Do NOT describe actions or motions.
+- Do NOT follow the style of seen or unseen instructions.
+
+Your task is to infer a minimal sequence of SUBGOAL STATES
+that must be achieved to satisfy the instruction goal.
+
+Each subgoal should correspond to a semantic target image:
+- It represents a stable, visually observable world state
+- It is necessary for task completion
+- It can be verified from a single image
+
+Guidelines:
+- Decompose into 3–4 subgoals
+- Subgoals must be ordered
+- Subgoals must be STATES, not actions
+- Do not include redundant or overly fine-grained steps
+- Do not introduce objects not mentioned ({A}, {B}, table/surface)
+
+For each subgoal, output:
+- subgoal_id
+- subgoal_name
+- semantic_image_description
+- key_conditions
+
+Output ONLY the JSON.

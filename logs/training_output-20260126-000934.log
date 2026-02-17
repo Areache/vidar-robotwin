@@ -1,0 +1,218 @@
+W0126 00:09:35.726000 21325 site-packages/torch/distributed/run.py:793] 
+W0126 00:09:35.726000 21325 site-packages/torch/distributed/run.py:793] *****************************************
+W0126 00:09:35.726000 21325 site-packages/torch/distributed/run.py:793] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0126 00:09:35.726000 21325 site-packages/torch/distributed/run.py:793] *****************************************
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/model_causal.py:18: UserWarning: using FA2
+  warnings.warn('using FA2')
+2026-01-26 00:09:39,743 - root - INFO - torch._dynamo cache_size_limit set to 64
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/model_causal.py:18: UserWarning: using FA2
+  warnings.warn('using FA2')
+2026-01-26 00:09:39,776 - root - INFO - torch._dynamo cache_size_limit set to 64
+2026-01-26 00:09:39,779 - __main__ - INFO - ============================================================
+2026-01-26 00:09:39,779 - __main__ - INFO - Vidarc Stage 2 Training: Causal Self-Forcing
+2026-01-26 00:09:39,779 - __main__ - INFO - ============================================================
+2026-01-26 00:09:39,779 - __main__ - INFO - World size: 4
+2026-01-26 00:09:39,779 - __main__ - INFO - Device: cuda:0
+2026-01-26 00:09:39,785 - __main__ - INFO - Using multiple data directories from config: ['/mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed', '/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed']
+2026-01-26 00:09:39,790 - __main__ - INFO - Saved config to output_vidarc/config.yaml
+2026-01-26 00:09:39,790 - __main__ - INFO - Creating Vidarc causal trainer...
+2026-01-26 00:09:39,790 - training.trainers.vidarc_trainer - INFO - Training mode: Standard (no SF)
+2026-01-26 00:09:39,790 - training.trainers.vidarc_trainer - INFO - Setting up Vidarc causal trainer (Stage 2)...
+2026-01-26 00:09:39,790 - training.trainers.vidarc_trainer - INFO - Building causal model...
+2026-01-26 00:09:39,790 - training.trainers.vidarc_trainer - INFO - Building WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:09:39,790 - training.models.wrapper_causal - INFO - Loading T5 encoder...
+2026-01-26 00:09:39,893 - __main__ - INFO - Using multiple data directories from config: ['/mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed', '/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed']
+2026-01-26 00:09:39,893 - training.trainers.vidarc_trainer - INFO - Training mode: Standard (no SF)
+2026-01-26 00:09:39,893 - training.trainers.vidarc_trainer - INFO - Setting up Vidarc causal trainer (Stage 2)...
+2026-01-26 00:09:39,893 - training.trainers.vidarc_trainer - INFO - Building causal model...
+2026-01-26 00:09:39,893 - training.trainers.vidarc_trainer - INFO - Building WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:09:39,893 - training.models.wrapper_causal - INFO - Loading T5 encoder...
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/model_causal.py:18: UserWarning: using FA2
+  warnings.warn('using FA2')
+2026-01-26 00:09:39,907 - root - INFO - torch._dynamo cache_size_limit set to 64
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/model_causal.py:18: UserWarning: using FA2
+  warnings.warn('using FA2')
+2026-01-26 00:09:39,920 - root - INFO - torch._dynamo cache_size_limit set to 64
+2026-01-26 00:09:40,708 - __main__ - INFO - Using multiple data directories from config: ['/mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed', '/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed']
+2026-01-26 00:09:40,708 - training.trainers.vidarc_trainer - INFO - Training mode: Standard (no SF)
+2026-01-26 00:09:40,708 - training.trainers.vidarc_trainer - INFO - Setting up Vidarc causal trainer (Stage 2)...
+2026-01-26 00:09:40,708 - training.trainers.vidarc_trainer - INFO - Building causal model...
+2026-01-26 00:09:40,708 - training.trainers.vidarc_trainer - INFO - Building WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:09:40,708 - training.models.wrapper_causal - INFO - Loading T5 encoder...
+2026-01-26 00:09:40,712 - __main__ - INFO - Using multiple data directories from config: ['/mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed', '/mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed']
+2026-01-26 00:09:40,712 - training.trainers.vidarc_trainer - INFO - Training mode: Standard (no SF)
+2026-01-26 00:09:40,712 - training.trainers.vidarc_trainer - INFO - Setting up Vidarc causal trainer (Stage 2)...
+2026-01-26 00:09:40,712 - training.trainers.vidarc_trainer - INFO - Building causal model...
+2026-01-26 00:09:40,712 - training.trainers.vidarc_trainer - INFO - Building WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:09:40,712 - training.models.wrapper_causal - INFO - Loading T5 encoder...
+2026-01-26 00:10:11,228 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/t5.py:500: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+2026-01-26 00:10:11,511 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/t5.py:500: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+2026-01-26 00:10:12,077 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/t5.py:500: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+2026-01-26 00:10:12,079 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/t5.py:500: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+2026-01-26 00:11:10,183 - training.models.wrapper_causal - INFO - Loading VAE...
+2026-01-26 00:11:10,188 - training.models.wrapper_causal - INFO - Loading VAE...
+2026-01-26 00:11:10,199 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/Wan2.2_VAE.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/vae2_2.py:889: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  torch.load(pretrained_path, map_location=device), assign=True)
+2026-01-26 00:11:10,203 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/Wan2.2_VAE.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/vae2_2.py:889: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  torch.load(pretrained_path, map_location=device), assign=True)
+2026-01-26 00:11:10,258 - training.models.wrapper_causal - INFO - Loading VAE...
+2026-01-26 00:11:10,263 - training.models.wrapper_causal - INFO - Loading VAE...
+2026-01-26 00:11:10,274 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/Wan2.2_VAE.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/vae2_2.py:889: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  torch.load(pretrained_path, map_location=device), assign=True)
+2026-01-26 00:11:10,279 - root - INFO - loading /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B/Wan2.2_VAE.pth
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar/wan/modules/vae2_2.py:889: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  torch.load(pretrained_path, map_location=device), assign=True)
+2026-01-26 00:11:21,827 - training.models.wrapper_causal - INFO - Loading WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:11:21,827 - training.models.wrapper_causal - INFO - Loading WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:11:21,827 - training.models.wrapper_causal - INFO - Loading WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:11:21,828 - training.models.wrapper_causal - INFO - Loading WanModelCausal from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:11:35,783 - training.models.wrapper_causal - INFO - Loading Stage 1 weights from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+2026-01-26 00:11:35,784 - training.models.wrapper_causal - INFO - Loading Stage 1 weights from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/models/wrapper_causal.py:150: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(self.pt_dir, map_location="cpu")
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/models/wrapper_causal.py:150: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(self.pt_dir, map_location="cpu")
+2026-01-26 00:11:35,786 - training.models.wrapper_causal - INFO - Loading Stage 1 weights from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/models/wrapper_causal.py:150: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(self.pt_dir, map_location="cpu")
+2026-01-26 00:11:35,788 - training.models.wrapper_causal - INFO - Loading Stage 1 weights from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/models/wrapper_causal.py:150: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(self.pt_dir, map_location="cpu")
+2026-01-26 00:16:03,816 - training.models.wrapper_causal - INFO - Enabling gradient checkpointing for DiT blocks
+2026-01-26 00:16:03,816 - training.models.wrapper_causal - INFO - Enabling gradient checkpointing for DiT blocks
+2026-01-26 00:16:03,816 - training.models.wrapper_causal - INFO - Enabling gradient checkpointing for DiT blocks
+2026-01-26 00:16:03,816 - training.models.wrapper_causal - INFO - Enabling gradient checkpointing for DiT blocks
+2026-01-26 00:16:04,271 - training.models.wrapper_causal - INFO - Freezing T5 encoder
+2026-01-26 00:16:04,272 - training.models.wrapper_causal - INFO - Freezing T5 encoder
+2026-01-26 00:16:04,273 - training.models.wrapper_causal - INFO - Freezing VAE
+2026-01-26 00:16:04,274 - training.models.wrapper_causal - INFO - Freezing VAE
+2026-01-26 00:16:04,275 - training.trainers.vidarc_trainer - INFO - Wrapping DiT with FSDP...
+2026-01-26 00:16:04,276 - training.trainers.vidarc_trainer - INFO - Wrapping DiT with FSDP...
+2026-01-26 00:16:04,305 - training.models.wrapper_causal - INFO - Freezing T5 encoder
+2026-01-26 00:16:04,305 - training.models.wrapper_causal - INFO - Freezing T5 encoder
+2026-01-26 00:16:04,307 - training.models.wrapper_causal - INFO - Freezing VAE
+2026-01-26 00:16:04,307 - training.models.wrapper_causal - INFO - Freezing VAE
+2026-01-26 00:16:04,309 - training.trainers.vidarc_trainer - INFO - Wrapping DiT with FSDP...
+2026-01-26 00:16:04,309 - training.trainers.vidarc_trainer - INFO - Wrapping DiT with FSDP...
+2026-01-26 00:16:07,849 - training.trainers.vidarc_trainer - INFO - Building optimizer and scheduler...
+2026-01-26 00:16:07,851 - training.trainers.vidarc_trainer - INFO - Trainable parameters: 1,249,946,928
+2026-01-26 00:16:07,852 - training.trainers.vidarc_trainer - INFO - Building dataloader...
+2026-01-26 00:16:07,852 - training.trainers.base - INFO - Using HDF5 dataset from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed, /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:07,855 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed/hdf5
+2026-01-26 00:16:07,856 - training.data.hdf5_dataset - INFO - Found 50 files matching 'episode_*.hdf5' in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-01-26 00:16:07,905 - training.trainers.vidarc_trainer - INFO - Building optimizer and scheduler...
+2026-01-26 00:16:07,907 - training.trainers.vidarc_trainer - INFO - Trainable parameters: 1,249,946,928
+2026-01-26 00:16:07,907 - training.trainers.vidarc_trainer - INFO - Building dataloader...
+2026-01-26 00:16:07,908 - training.trainers.base - INFO - Using HDF5 dataset from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed, /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:07,908 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed/hdf5
+2026-01-26 00:16:07,908 - training.data.hdf5_dataset - INFO - Found 50 files matching 'episode_*.hdf5' in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-01-26 00:16:07,968 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5
+2026-01-26 00:16:07,983 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5
+2026-01-26 00:16:08,036 - training.data.hdf5_dataset - INFO - Found 500 files matching 'episode_*.hdf5' in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,037 - training.data.hdf5_dataset - INFO - Found 500 files matching 'episode_*.hdf5' in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,037 - training.data.hdf5_dataset - INFO - Found 550 episodes in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed, /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,037 - training.data.hdf5_dataset - INFO - Found 550 episodes in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed, /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,038 - training.trainers.vidarc_trainer - INFO - Moving VAE to GPU for faster encoding
+2026-01-26 00:16:08,038 - training.trainers.vidarc_trainer - INFO - Moving VAE to GPU for faster encoding
+2026-01-26 00:16:08,106 - training.trainers.vidarc_trainer - INFO - Building optimizer and scheduler...
+2026-01-26 00:16:08,108 - training.trainers.vidarc_trainer - INFO - Trainable parameters: 1,249,946,928
+2026-01-26 00:16:08,108 - training.trainers.vidarc_trainer - INFO - Building dataloader...
+2026-01-26 00:16:08,108 - training.trainers.base - INFO - Using HDF5 dataset from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed, /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,108 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed/hdf5
+2026-01-26 00:16:08,109 - training.data.hdf5_dataset - INFO - Found 50 files matching 'episode_*.hdf5' in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-01-26 00:16:08,109 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5
+2026-01-26 00:16:08,154 - training.data.hdf5_dataset - INFO - Found 500 files matching 'episode_*.hdf5' in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,154 - training.data.hdf5_dataset - INFO - Found 550 episodes in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed, /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,155 - training.trainers.vidarc_trainer - INFO - Moving VAE to GPU for faster encoding
+2026-01-26 00:16:08,177 - training.trainers.vidarc_trainer - INFO - Building optimizer and scheduler...
+2026-01-26 00:16:08,178 - training.trainers.vidarc_trainer - INFO - Trainable parameters: 1,249,946,928
+2026-01-26 00:16:08,179 - training.trainers.vidarc_trainer - INFO - Building dataloader...
+2026-01-26 00:16:08,179 - training.trainers.base - INFO - Using HDF5 dataset from /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed, /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,179 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed/hdf5
+2026-01-26 00:16:08,180 - training.data.hdf5_dataset - INFO - Found 50 files matching 'episode_*.hdf5' in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-01-26 00:16:08,180 - training.data.hdf5_dataset - INFO - Searching for episodes in: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5
+2026-01-26 00:16:08,223 - training.data.hdf5_dataset - INFO - Found 500 files matching 'episode_*.hdf5' in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,223 - training.data.hdf5_dataset - INFO - Found 550 episodes in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed, /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+2026-01-26 00:16:08,225 - training.trainers.vidarc_trainer - INFO - Moving VAE to GPU for faster encoding
+2026-01-26 00:16:08,489 - training.trainers.vidarc_trainer - INFO - Setup complete! Chunk size: 1
+2026-01-26 00:16:08,489 - training.trainers.base - INFO - Starting training for 4000 steps...
+2026-01-26 00:16:08,493 - training.trainers.vidarc_trainer - INFO - Setup complete! Chunk size: 1
+2026-01-26 00:16:08,494 - training.trainers.base - INFO - Starting training for 4000 steps...
+2026-01-26 00:16:08,620 - training.trainers.vidarc_trainer - INFO - Setup complete! Chunk size: 1
+2026-01-26 00:16:08,621 - training.trainers.base - INFO - Starting training for 4000 steps...
+2026-01-26 00:16:08,696 - training.trainers.vidarc_trainer - INFO - Setup complete! Chunk size: 1
+wandb: Tracking run with wandb version 0.23.1
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/wandb/offline-run-20260126_001610-stnwn0by
+2026-01-26 00:16:10,881 - training.trainers.base - INFO - Wandb initialized - run id: stnwn0by, mode: offline
+2026-01-26 00:16:10,882 - __main__ - INFO - ============================================================
+2026-01-26 00:16:10,882 - __main__ - INFO - Stage 2 Training Configuration:
+2026-01-26 00:16:10,882 - __main__ - INFO -   - Data dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+2026-01-26 00:16:10,882 - __main__ - INFO -   - Checkpoint dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+2026-01-26 00:16:10,882 - __main__ - INFO -   - Stage 1 weights: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+2026-01-26 00:16:10,882 - __main__ - INFO -   - Output dir: ./output_vidarc
+2026-01-26 00:16:10,882 - __main__ - INFO -   - Max steps: 4000
+2026-01-26 00:16:10,883 - __main__ - INFO -   - Batch size: 1 per GPU
+2026-01-26 00:16:10,883 - __main__ - INFO -   - Learning rate: 2e-05
+2026-01-26 00:16:10,883 - __main__ - INFO -   - Chunk size: 1
+2026-01-26 00:16:10,883 - __main__ - INFO -   - Embodiment loss: False (eta=3.0)
+2026-01-26 00:16:10,883 - __main__ - INFO - ============================================================
+2026-01-26 00:16:10,883 - training.trainers.base - INFO - Starting training for 4000 steps...
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/training/trainers/base.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+2026-01-26 00:24:55,513 - training.trainers.base - INFO - [Step 0/4000 (0.00%)] | Loss: 1.708877 | LR: 8.60e-07 | Elapsed: 00:08:44
+2026-01-26 00:39:25,706 - training.trainers.base - INFO - [Step 2/4000 (0.05%)] | Loss: 1.696748 | LR: 2.18e-06 | Elapsed: 00:23:14 | ETA: 774:30:51
+2026-01-26 00:54:00,386 - training.trainers.base - INFO - [Step 4/4000 (0.10%)] | Loss: 1.943766 | LR: 3.50e-06 | Elapsed: 00:37:49 | ETA: 629:47:13
+2026-01-26 01:08:35,930 - training.trainers.base - INFO - [Step 6/4000 (0.15%)] | Loss: 1.689529 | LR: 4.82e-06 | Elapsed: 00:52:25 | ETA: 581:32:32
+2026-01-26 01:23:10,720 - training.trainers.base - INFO - [Step 8/4000 (0.20%)] | Loss: 1.633406 | LR: 6.14e-06 | Elapsed: 01:06:59 | ETA: 557:11:38
+2026-01-26 01:37:41,344 - training.trainers.base - INFO - [Step 10/4000 (0.25%)] | Loss: 1.802943 | LR: 7.46e-06 | Elapsed: 01:21:30 | ETA: 542:01:34
+2026-01-26 01:52:06,572 - training.trainers.base - INFO - [Step 12/4000 (0.30%)] | Loss: 1.410825 | LR: 8.78e-06 | Elapsed: 01:35:55 | ETA: 531:20:07
+2026-01-26 02:06:35,469 - training.trainers.base - INFO - [Step 14/4000 (0.35%)] | Loss: 1.145369 | LR: 1.01e-05 | Elapsed: 01:50:24 | ETA: 523:55:14
+2026-01-26 02:21:03,415 - training.trainers.base - INFO - [Step 16/4000 (0.40%)] | Loss: 1.340890 | LR: 1.14e-05 | Elapsed: 02:04:52 | ETA: 518:14:00
+2026-01-26 02:35:33,199 - training.trainers.base - INFO - [Step 18/4000 (0.45%)] | Loss: 1.699425 | LR: 1.27e-05 | Elapsed: 02:19:22 | ETA: 513:52:10
+2026-01-26 02:50:05,469 - training.trainers.base - INFO - [Step 20/4000 (0.50%)] | Loss: 1.457489 | LR: 1.41e-05 | Elapsed: 02:33:54 | ETA: 510:28:02
+2026-01-26 03:04:39,871 - training.trainers.base - INFO - [Step 22/4000 (0.55%)] | Loss: 1.487778 | LR: 1.54e-05 | Elapsed: 02:48:28 | ETA: 507:44:48
+2026-01-26 03:19:14,079 - training.trainers.base - INFO - [Step 24/4000 (0.60%)] | Loss: 1.797013 | LR: 1.67e-05 | Elapsed: 03:03:03 | ETA: 505:25:49
+2026-01-26 03:33:45,909 - training.trainers.base - INFO - [Step 26/4000 (0.65%)] | Loss: 1.464359 | LR: 1.80e-05 | Elapsed: 03:17:35 | ETA: 503:19:55
+2026-01-26 03:48:17,470 - training.trainers.base - INFO - [Step 28/4000 (0.70%)] | Loss: 1.569844 | LR: 1.93e-05 | Elapsed: 03:32:06 | ETA: 501:29:17
+2026-01-26 04:02:47,838 - training.trainers.base - INFO - [Step 30/4000 (0.75%)] | Loss: 1.470646 | LR: 2.00e-05 | Elapsed: 03:46:36 | ETA: 499:48:50
+2026-01-26 04:17:21,193 - training.trainers.base - INFO - [Step 32/4000 (0.80%)] | Loss: 1.550792 | LR: 2.00e-05 | Elapsed: 04:01:10 | ETA: 498:25:18
+2026-01-26 04:31:51,693 - training.trainers.base - INFO - [Step 34/4000 (0.85%)] | Loss: 1.558961 | LR: 2.00e-05 | Elapsed: 04:15:40 | ETA: 497:04:20
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/self_forcing/lib/python3.10/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:690: FutureWarning: FSDP.state_dict_type() and FSDP.set_state_dict_type() are being deprecated. Please use APIs, get_state_dict() and set_state_dict(), which can support different parallelisms, FSDP1, FSDP2, DDP. API doc: https://pytorch.org/docs/stable/distributed.checkpoint.html#torch.distributed.checkpoint.state_dict.get_state_dict .Tutorial: https://pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html .
+  warnings.warn(
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/self_forcing/lib/python3.10/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:690: FutureWarning: FSDP.state_dict_type() and FSDP.set_state_dict_type() are being deprecated. Please use APIs, get_state_dict() and set_state_dict(), which can support different parallelisms, FSDP1, FSDP2, DDP. API doc: https://pytorch.org/docs/stable/distributed.checkpoint.html#torch.distributed.checkpoint.state_dict.get_state_dict .Tutorial: https://pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html .
+  warnings.warn(
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/self_forcing/lib/python3.10/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:690: FutureWarning: FSDP.state_dict_type() and FSDP.set_state_dict_type() are being deprecated. Please use APIs, get_state_dict() and set_state_dict(), which can support different parallelisms, FSDP1, FSDP2, DDP. API doc: https://pytorch.org/docs/stable/distributed.checkpoint.html#torch.distributed.checkpoint.state_dict.get_state_dict .Tutorial: https://pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html .
+  warnings.warn(
+/mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/self_forcing/lib/python3.10/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:690: FutureWarning: FSDP.state_dict_type() and FSDP.set_state_dict_type() are being deprecated. Please use APIs, get_state_dict() and set_state_dict(), which can support different parallelisms, FSDP1, FSDP2, DDP. API doc: https://pytorch.org/docs/stable/distributed.checkpoint.html#torch.distributed.checkpoint.state_dict.get_state_dict .Tutorial: https://pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html .
+  warnings.warn(
+2026-01-26 04:40:16,663 - training.trainers.vidarc_trainer - INFO - Saved Stage 2 checkpoint to /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/checkpoints/vidarc_4x_35.pt
+2026-01-26 04:40:17,516 - training.trainers.vidarc_trainer - INFO - Post-save evaluation disabled. Set evaluation.run_after_save=true in config or RUN_EVAL_AFTER_SAVE=true to enable.
+2026-01-26 04:47:36,456 - training.trainers.base - INFO - [Step 36/4000 (0.90%)] | Loss: 2.138346 | LR: 2.00e-05 | Elapsed: 04:31:25 | ETA: 498:07:02
+2026-01-26 05:02:12,863 - training.trainers.base - INFO - [Step 38/4000 (0.95%)] | Loss: 1.463786 | LR: 2.00e-05 | Elapsed: 04:46:01 | ETA: 497:02:42
+2026-01-26 05:16:56,677 - training.trainers.base - INFO - [Step 40/4000 (1.00%)] | Loss: 1.567506 | LR: 2.00e-05 | Elapsed: 05:00:45 | ETA: 496:15:33

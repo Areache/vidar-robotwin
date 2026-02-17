@@ -68,17 +68,17 @@
 #   USE_LORA=true LORA_RANK=32 \
 #   ./run_train_vidarc.sh configs/vidarc_2xh200.yaml ...
 #
-# Few-Step Diffusion & Stochastic Gradient Truncation:
-#   STOCHASTIC_TRUNCATION: Set to "true" to enable, "false" to disable
-#   TRUNCATION_STRATEGY: "uniform", "importance", or "stratified" (default: uniform)
-#   NUM_INFERENCE_STEPS: Number of diffusion steps (default: 10)
+# Timing Debug (for performance profiling):
+#   TIME_DEBUG: Set to "1" to enable detailed timing instrumentation (default: 0)
+#   When enabled, prints timing for each major component:
+#   - Data Loading, Data Transfer
+#   - VAE/T5 Encoding
+#   - Self-Forcing Forward Pass (with chunk-level breakdown)
+#   - Loss Computation, Backward, Optimizer Step
+#   - Aggregated statistics every N steps
 #
-# Example (enable stochastic truncation with importance sampling):
-#   STOCHASTIC_TRUNCATION=true TRUNCATION_STRATEGY=importance \
-#   ./run_train_vidarc.sh configs/vidarc_2xh200.yaml ...
-#
-# Example (disable stochastic truncation for standard training):
-#   STOCHASTIC_TRUNCATION=false \
+# Example (with timing debug):
+#   TIME_DEBUG=1 \
 #   ./run_train_vidarc.sh configs/vidarc_2xh200.yaml ...
 # =============================================================================
 
@@ -115,10 +115,16 @@ export NCCL_P2P_LEVEL=${NCCL_P2P_LEVEL:-NVL}
 # Increase dynamo cache for flex_attention shapes
 export TORCH_DYNAMO_CACHE_SIZE_LIMIT=${TORCH_DYNAMO_CACHE_SIZE_LIMIT:-128}
 
+# Timing debug (for performance profiling)
+export TIME_DEBUG=${TIME_DEBUG:-0}
+
 echo "NCCL_TIMEOUT: $NCCL_TIMEOUT"
 echo "NCCL_IB_DISABLE: $NCCL_IB_DISABLE"
 echo "NCCL_P2P_LEVEL: $NCCL_P2P_LEVEL"
 echo "TORCH_DYNAMO_CACHE_SIZE_LIMIT: $TORCH_DYNAMO_CACHE_SIZE_LIMIT"
+if [ "$TIME_DEBUG" = "1" ]; then
+    echo "TIME_DEBUG: ENABLED (detailed timing instrumentation)"
+fi
 
 # --- PYTHONPATH Setup ---
 # Add vidar codebase to PYTHONPATH (for wan modules)
@@ -283,24 +289,6 @@ if [ "$USE_LORA" = "true" ]; then
     echo "LoRA enabled: rank=$LORA_RANK, alpha=$LORA_ALPHA, target_modules=$LORA_TARGET_MODULES"
 fi
 
-# Build Stochastic Truncation flags
-TRUNCATION_FLAGS=""
-if [ "$STOCHASTIC_TRUNCATION" = "true" ]; then
-    TRUNCATION_FLAGS="--stochastic-truncation"
-    echo "Stochastic gradient truncation: ENABLED"
-    if [ -n "$TRUNCATION_STRATEGY" ]; then
-        TRUNCATION_FLAGS="$TRUNCATION_FLAGS --truncation-strategy $TRUNCATION_STRATEGY"
-        echo "  Strategy: $TRUNCATION_STRATEGY"
-    fi
-    if [ -n "$NUM_INFERENCE_STEPS" ]; then
-        TRUNCATION_FLAGS="$TRUNCATION_FLAGS --num-inference-steps $NUM_INFERENCE_STEPS"
-        echo "  Inference steps: $NUM_INFERENCE_STEPS"
-    fi
-elif [ "$STOCHASTIC_TRUNCATION" = "false" ]; then
-    TRUNCATION_FLAGS="--no-stochastic-truncation"
-    echo "Stochastic gradient truncation: DISABLED"
-fi
-
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
 
@@ -332,7 +320,6 @@ if [ "$GPU_COUNT" -eq 1 ]; then
         $PT_FLAG \
         $RESUME_FLAG \
         $LORA_FLAGS \
-        $TRUNCATION_FLAGS \
         --output-dir "$OUTPUT_DIR" \
         --max-steps "$MAX_STEPS" \
         --batch-size "$BATCH_SIZE" \
@@ -357,7 +344,6 @@ else
         $PT_FLAG \
         $RESUME_FLAG \
         $LORA_FLAGS \
-        $TRUNCATION_FLAGS \
         --output-dir "$OUTPUT_DIR" \
         --max-steps "$MAX_STEPS" \
         --batch-size "$BATCH_SIZE" \

@@ -1,0 +1,192 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    python_version: 3.10.19
+    cli_version: 0.23.1
+    framework: huggingface
+    huggingface_version: 4.57.3
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1768766715
+    t:
+      1:
+      - 1
+      - 5
+      - 11
+      - 41
+      - 49
+      - 53
+      - 71
+      - 83
+      2:
+      - 1
+      - 5
+      - 11
+      - 41
+      - 49
+      - 53
+      - 71
+      - 83
+      3:
+      - 4
+      - 16
+      - 42
+      - 61
+      4: 3.10.19
+      5: 0.23.1
+      6: 4.57.3
+      13: linux-x86_64
+    e:
+      lfrbjbp4yt9s7kyn2fpharmszxgt39mv:
+        os: Linux-5.15.0-89-generic-x86_64-with-glibc2.35
+        python: CPython 3.10.19
+        started_at: '2026-01-18T20:05:15.749027Z'
+        args:
+        - --config
+        - configs/vidarc_2xh200.yaml
+        - --data-dir
+        - /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+        - --ckpt-dir
+        - /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+        - --pt-dir
+        - /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidar.pt
+        - --output-dir
+        - ./output_vidarc
+        - --max-steps
+        - '4000'
+        - --batch-size
+        - '1'
+        - --gradient-accumulation
+        - '32'
+        - --chunk-size
+        - '1'
+        - --lr
+        - 2e-5
+        - --eta
+        - '3.0'
+        - --log-interval
+        - '10'
+        - --save-interval
+        - '500'
+        program: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin/scripts/train_vidarc.py
+        code_path: scripts/train_vidarc.py
+        code_path_local: scripts/train_vidarc.py
+        git:
+          remote_url: https://github.com/thu-ml/vidar-robotwin.git
+          commit: a455dfe550881c30f4e685d3e5b45282697fdc09
+        root: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/code/vidar-robotwin
+        host: gen3d-nfnrc-1035698-worker-0
+        executable: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/env/self_forcing/bin/python3.10
+        cpu_count: 96
+        cpu_count_logical: 16
+        gpu_type: NVIDIA H200
+        gpu_count: 2
+        disk:
+          /:
+            total: '3838880616448'
+            used: '1012532232192'
+        memory:
+          total: '262144000000'
+        gpu_nvidia:
+        - name: NVIDIA H200
+          memory_total: '150754820096'
+          cuda_cores: 16896
+          architecture: Hopper
+          uuid: GPU-9e697e14-b2c0-485b-1ea3-97628e79ee9f
+        - name: NVIDIA H200
+          memory_total: '150754820096'
+          cuda_cores: 16896
+          architecture: Hopper
+          uuid: GPU-a8b88fbc-a2d7-98d4-47fb-b68f767048e2
+        cuda_version: '12.8'
+        writer_id: lfrbjbp4yt9s7kyn2fpharmszxgt39mv
+model:
+  desc: null
+  value:
+    ckpt_dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+    pt_dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidar.pt
+    model_class: WanModelCausal
+    gradient_checkpointing: false
+    chunk_size: 1
+    same_t_across_chunks: true
+training:
+  desc: null
+  value:
+    num_steps: 4000
+    batch_size: 1
+    gradient_accumulation: 8
+    gradient_accumulation_steps: 32
+    lr: 2.0e-05
+    weight_decay: 0.1
+    beta1: 0.9
+    beta2: 0.999
+    epsilon: 1.0e-08
+    warmup_steps: 200
+    scheduler: cosine
+    freeze:
+    - t5
+    - vae
+    eta: 3.0
+    use_embodiment_loss: false
+    debug: false
+    max_steps: 4000
+data:
+  desc: null
+  value:
+    data_dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+    dataset_type: hdf5
+    num_frames: 9
+    resolution:
+    - 736
+    - 640
+    fps: 10
+    num_workers: 4
+    pin_memory: true
+    cfg_prob: 0.1
+loss:
+  desc: null
+  value:
+    type: causal_flow_matching
+    embodiment_aware: true
+    eta: 3.0
+    lambda_mask: 0.003
+self_forcing:
+  desc: null
+  value:
+    enabled: true
+    causal: true
+    chunk_size: 1
+    kv_cache_length: 64
+    same_step_across_blocks: true
+distributed:
+  desc: null
+  value:
+    use_fsdp: true
+    sharding_strategy: FULL_SHARD
+    mixed_precision: bf16
+    activation_checkpointing: false
+    cpu_offload: true
+logging:
+  desc: null
+  value:
+    output_dir: outputs/vidarc_2xh200
+    log_interval: 50
+    save_interval: 500
+    eval_interval: 1000
+    use_wandb: true
+    wandb_project: vidarc-training
+    wandb_entity: null
+output:
+  desc: null
+  value:
+    output_dir: ./output_vidarc
+    save_path: checkpoints/vidar/vidarc.pt
+    save_optimizer: true
+    save_scheduler: true
+    log_interval: 10
+    save_interval: 500
+seed:
+  desc: null
+  value: 42
