@@ -2,7 +2,6 @@
 
 import logging
 import math
-import os
 import re
 import time
 from typing import Dict, Any, Optional
@@ -150,12 +149,6 @@ class VidarCausalTrainer(BaseTrainer):
         super().__init__(config)
         self.wrapper: Optional[WanModelCausalTrainingWrapper] = None
 
-        # T5 embedding cache (for performance optimization)
-        self.t5_cache_enabled = getattr(config.training, "t5_cache_enabled", True)
-        self.t5_cache: Dict[int, torch.Tensor] = {} if self.t5_cache_enabled else None
-        if self.t5_cache_enabled:
-            logger.info("T5 embedding cache: ENABLED (will cache repeated text prompts)")
-
         # Self-Forcing parameters
         self.chunk_size = getattr(config.model, "chunk_size", 16)
         self.same_t_across_chunks = getattr(config.model, "same_t_across_chunks", True)
@@ -226,21 +219,6 @@ class VidarCausalTrainer(BaseTrainer):
             debug=self.aligned_debug,
         )
 
-        # Compile T5 encoder if enabled (for performance optimization)
-        compile_t5 = getattr(self.config.training, "compile_t5", False)
-        if compile_t5 and hasattr(self.wrapper, 't5') and self.wrapper.t5 is not None:
-            try:
-                logger.info("Compiling T5 encoder with torch.compile...")
-                # Compile T5 encoder for faster inference
-                self.wrapper.t5.model = torch.compile(
-                    self.wrapper.t5.model,
-                    mode="reduce-overhead",  # Balance between compilation time and speed
-                    fullgraph=False  # Allow graph breaks for flexibility
-                )
-                logger.info("T5 encoder compiled successfully")
-            except Exception as e:
-                logger.warning(f"Failed to compile T5 encoder: {e}. Continuing without compilation.")
-
         # Return the DiT for FSDP wrapping
         return self.wrapper.dit
 
@@ -273,8 +251,6 @@ class VidarCausalTrainer(BaseTrainer):
             transformer_layer_cls=transformer_layer_cls,
             cpu_offload=cfg.cpu_offload,
             activation_checkpointing=use_activation_checkpointing,
-            sync_module_states=getattr(cfg, "sync_module_states", False),
-            forward_prefetch=getattr(cfg, "forward_prefetch", False),
         )
 
         # Update wrapper's dit reference
@@ -400,16 +376,14 @@ class VidarCausalTrainer(BaseTrainer):
         instructions = batch["instruction"]  # List[str]
         B = video.shape[0]
 
-        # Timing: Video preprocessing
-        with time_block("Video Preprocessing", device=self.device):
-            # Convert video format: (B, T, C, H, W) -> (B, C, T, H, W)
-            video = video.permute(0, 2, 1, 3, 4)
+        # Convert video format: (B, T, C, H, W) -> (B, C, T, H, W)
+        video = video.permute(0, 2, 1, 3, 4)
 
-            # Clamp to ensure strict [0, 1] range before normalization (matching inference)
-            video = torch.clamp(video, 0.0, 1.0)
+        # Clamp to ensure strict [0, 1] range before normalization (matching inference)
+        video = torch.clamp(video, 0.0, 1.0)
 
-            # Normalize from [0, 1] to [-1, 1]
-            video = video * 2 - 1
+        # Normalize from [0, 1] to [-1, 1]
+        video = video * 2 - 1
 
         # Encode video to latent space
         with torch.no_grad():
@@ -667,61 +641,15 @@ class VidarCausalTrainer(BaseTrainer):
         return latent
 
     def _encode_text(self, instructions: list) -> torch.Tensor:
-        """Encode text instructions with optional caching."""
-        # Use cache if enabled
-        if self.t5_cache_enabled and self.t5_cache is not None:
-            context = self._encode_text_cached(instructions)
+        """Encode text instructions."""
+        context = self.wrapper.encode_text(instructions)
+        # Handle list type (WanModelCausalTrainingWrapper returns list of tensors)
+        if isinstance(context, list):
+            # Stack list of tensors into single tensor (B, L, D)
+            context = torch.stack([c.to(self.device) for c in context])
         else:
-            context = self.wrapper.encode_text(instructions)
-            # Handle list type (WanModelCausalTrainingWrapper returns list of tensors)
-            if isinstance(context, list):
-                # Stack list of tensors into single tensor (B, L, D)
-                context = torch.stack([c.to(self.device) for c in context])
-            else:
-                # Already a tensor, just move to device
-                context = context.to(self.device)
-        
-        return context
-    
-    def _encode_text_cached(self, instructions: list) -> torch.Tensor:
-        """Encode text with caching by prompt hash."""
-        cache_keys = [hash(prompt) for prompt in instructions]
-        
-        # Check cache and collect cache misses
-        embeddings = []
-        to_encode = []
-        to_encode_indices = []
-        
-        for idx, (key, prompt) in enumerate(zip(cache_keys, instructions)):
-            if key in self.t5_cache:
-                # Use cached embedding
-                embeddings.append(self.t5_cache[key])
-            else:
-                # Need to encode
-                to_encode.append(prompt)
-                to_encode_indices.append(idx)
-                embeddings.append(None)
-        
-        # Encode only cache misses
-        if to_encode:
-            with torch.no_grad():
-                new_embeddings = self.wrapper.encode_text(to_encode)
-            
-            # Handle list type
-            if isinstance(new_embeddings, list):
-                new_embeddings = [emb.to(self.device) for emb in new_embeddings]
-            else:
-                new_embeddings = [new_embeddings.to(self.device)]
-            
-            # Store in cache and fill embeddings list
-            for i, (orig_idx, key) in enumerate(zip(to_encode_indices, [cache_keys[j] for j in to_encode_indices])):
-                emb = new_embeddings[i]
-                self.t5_cache[key] = emb
-                embeddings[orig_idx] = emb
-        
-        # Stack all embeddings into single tensor (B, L, D)
-        context = torch.stack([emb.to(self.device) if not isinstance(emb, torch.Tensor) or emb.device != self.device else emb for emb in embeddings])
-        return context
+            # Already a tensor, just move to device
+            context = context.to(self.device)
         return context
 
     def train_step_standard(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:

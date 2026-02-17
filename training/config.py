@@ -44,10 +44,6 @@ class TrainingConfig:
     eta: float = 3.0
     use_embodiment_loss: bool = False
 
-    # Performance optimizations
-    t5_cache_enabled: bool = True  # Cache T5 embeddings (major speedup for repeated prompts)
-    compile_t5: bool = False  # Compile T5 encoder with torch.compile
-
     # Debug
     debug: bool = False
     max_steps: Optional[int] = None  # Override num_steps for debug
@@ -134,10 +130,6 @@ class DistributedConfig:
     mixed_precision: Literal["bf16", "fp16", "fp32"] = "bf16"
     activation_checkpointing: bool = True
     cpu_offload: bool = False
-    
-    # FSDP optimizations
-    sync_module_states: bool = False  # Sync module states across ranks (helps with load balancing)
-    forward_prefetch: bool = False  # Prefetch next layer during forward pass
 
 
 @dataclass

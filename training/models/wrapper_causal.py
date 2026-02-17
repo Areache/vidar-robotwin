@@ -423,16 +423,13 @@ class WanModelCausalTrainingWrapper(nn.Module):
 
             if chunk_idx == 0:
                 # Step 1: Initialize cache with clean frames
-                attention_mask_prefill = self._build_causal_mask(
-                    x_chunk.shape, block_size, self.device
-                )
                 with time_block(f"Chunk {chunk_idx} (prefill)", device=self.device, indent=1):
                     t_clean = torch.zeros_like(t_model) if isinstance(t_model, torch.Tensor) else 0.0
                     self.forward_causal(
                         x=x_chunk,
                         t=t_clean,
                         context=context,
-                        attention_mask=attention_mask_prefill,  # Mask for 1 frame
+                        attention_mask=attention_mask,
                         use_cache=False,  # Not needed, prefill handles it
                         prefill=True,     # Initializes cache
                         chunk_prefill=False,
@@ -440,22 +437,15 @@ class WanModelCausalTrainingWrapper(nn.Module):
                     )
 
                     # Step 2: Predict with noised frames using the cache
-                    # Need NEW attention mask that accounts for cached frame
-                    attention_mask_with_cache = self._build_chunk_causal_mask(
-                        x_noised.shape,
-                        block_size,
-                        kv_len=self.dit.kvcache_len(),  # Now has 460 tokens
-                        device=self.device
-                    )
                     v_pred = self.forward_causal(
                         x=x_noised,
                         t=t_model,
                         context=context,
-                        attention_mask=attention_mask_with_cache,  # ← NEW mask
+                        attention_mask=attention_mask,
                         use_cache=False,  # Use cache without updating
                         prefill=False,    # ← KEY FIX: Don't reinitialize!
                         chunk_prefill=False,
-                        block_idx=1,      # ← Fix: Use block_idx=1 (cache has frame 0, current is frame 1)
+                        block_idx=None,   # ← Must be None for first chunk
                     )
             else:
                 # Step 1: Update KV cache with clean frames (t=0)
@@ -599,29 +589,17 @@ class WanModelCausalTrainingWrapper(nn.Module):
 
             # Initialize cache with clean frames for first chunk
             if chunk_idx == 0:
-                attention_mask_prefill = self._build_causal_mask(
-                    x_chunk_target.shape, block_size, self.device
-                )
                 t_clean = torch.zeros(B, device=device, dtype=dtype)
                 self.forward_causal(
                     x=x_chunk_target,
                     t=t_clean,
                     context=context,
-                    attention_mask=attention_mask_prefill,  # Mask for 1 frame
+                    attention_mask=attention_mask,
                     use_cache=False,  # Not needed, prefill handles it
                     prefill=True,     # Initializes cache
                     chunk_prefill=False,
                     block_idx=None,   # Must be None for first chunk
                 )
-                # Need NEW attention mask that accounts for cached frame
-                attention_mask_with_cache = self._build_chunk_causal_mask(
-                    x_noisy.shape,
-                    block_size,
-                    kv_len=self.dit.kvcache_len(),  # Now has 460 tokens
-                    device=self.device
-                )
-            else:
-                attention_mask_with_cache = attention_mask
 
             # Denoising loop
             x0_pred = None
@@ -638,11 +616,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
                             x=x_noisy,
                             t=t_tensor,
                             context=context,
-                            attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                            attention_mask=attention_mask,
                             use_cache=False,
                             prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
                             chunk_prefill=chunk_prefill,
-                            block_idx=1 if chunk_idx == 0 else (None if prefill else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                            block_idx=None if (chunk_idx == 0 or prefill) else chunk_idx,  # ← Must be None for first chunk
                         )
 
                         # Convert velocity to x0 prediction
@@ -660,11 +638,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
                         x=x_noisy,
                         t=t_tensor,
                         context=context,
-                        attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                        attention_mask=attention_mask,
                         use_cache=False,
                         prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
                         chunk_prefill=chunk_prefill,
-                        block_idx=1 if chunk_idx == 0 else (None if prefill else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                        block_idx=None if (chunk_idx == 0 or prefill) else chunk_idx,  # ← Must be None for first chunk
                     )
 
                     # Convert velocity to x0 prediction
@@ -686,11 +664,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
                     x=x_for_cache,
                     t=t_cache,
                     context=context,
-                    attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                    attention_mask=attention_mask,
                     use_cache=True,
                     prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
                     chunk_prefill=chunk_prefill,
-                    block_idx=1 if chunk_idx == 0 else (None if prefill else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                    block_idx=None if (chunk_idx == 0 or prefill) else chunk_idx,  # ← Must be None for first chunk
                 )
 
             all_x0_pred.append(x0_pred)
@@ -1067,15 +1045,12 @@ class WanModelCausalTrainingWrapper(nn.Module):
 
             if chunk_idx == 0:
                 # Step 1: Initialize cache with clean frames
-                attention_mask_prefill = self._build_causal_mask(
-                    x_chunk.shape, block_size, self.device
-                )
                 t_clean = torch.zeros_like(t_model) if isinstance(t_model, torch.Tensor) else 0.0
                 self.forward_causal(
                     x=x_chunk,
                     t=t_clean,
                     context=context,
-                    attention_mask=attention_mask_prefill,  # Mask for 1 frame
+                    attention_mask=attention_mask,
                     use_cache=False,  # Not needed, prefill handles it
                     prefill=True,     # Initializes cache
                     chunk_prefill=False,
@@ -1083,22 +1058,15 @@ class WanModelCausalTrainingWrapper(nn.Module):
                 )
 
                 # Step 2: Predict with noised frames using the cache
-                # Need NEW attention mask that accounts for cached frame
-                attention_mask_with_cache = self._build_chunk_causal_mask(
-                    x_noised.shape,
-                    block_size,
-                    kv_len=self.dit.kvcache_len(),  # Now has 460 tokens
-                    device=self.device
-                )
                 v_pred = self.forward_causal(
                     x=x_noised,
                     t=t_model,
                     context=context,
-                    attention_mask=attention_mask_with_cache,  # ← NEW mask
+                    attention_mask=attention_mask,
                     use_cache=False,  # Use cache without updating
                     prefill=False,    # ← KEY FIX: Don't reinitialize!
                     chunk_prefill=False,
-                    block_idx=1,      # ← Fix: Use block_idx=1 (cache has frame 0, current is frame 1)
+                    block_idx=0,      # Use block_idx=0 for first chunk when cache exists
                 )
             else:
                 # 对齐评估代码：先预测，再更新 cache
@@ -1300,29 +1268,17 @@ class WanModelCausalTrainingWrapper(nn.Module):
 
             # Initialize cache with clean frames for first chunk
             if chunk_idx == 0:
-                attention_mask_prefill = self._build_causal_mask(
-                    x_chunk_target.shape, block_size, self.device
-                )
                 t_clean = torch.zeros(B, device=device, dtype=dtype)
                 self.forward_causal(
                     x=x_chunk_target,
                     t=t_clean,
                     context=context,
-                    attention_mask=attention_mask_prefill,  # Mask for 1 frame
+                    attention_mask=attention_mask,
                     use_cache=False,  # Not needed, prefill handles it
                     prefill=True,     # Initializes cache
                     chunk_prefill=False,
                     block_idx=None,   # Must be None for first chunk
                 )
-                # Need NEW attention mask that accounts for cached frame
-                attention_mask_with_cache = self._build_chunk_causal_mask(
-                    x_noisy.shape,
-                    block_size,
-                    kv_len=self.dit.kvcache_len(),  # Now has 460 tokens
-                    device=self.device
-                )
-            else:
-                attention_mask_with_cache = attention_mask
 
             # Denoising loop
             x0_pred = None
@@ -1338,11 +1294,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
                             x=x_noisy,
                             t=t_tensor,
                             context=context,
-                            attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                            attention_mask=attention_mask,
                             use_cache=False,
                             prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
                             chunk_prefill=chunk_prefill,
-                            block_idx=1 if chunk_idx == 0 else (None if (prefill or chunk_prefill) else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                            block_idx=None if (chunk_idx == 0 or prefill or chunk_prefill) else chunk_idx,  # ← Must be None for first chunk
                         )
                         x0_pred = self._velocity_to_x0(x_noisy, v_pred, current_t, num_train_timesteps)
 
@@ -1354,11 +1310,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
                         x=x_noisy,
                         t=t_tensor,
                         context=context,
-                        attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                        attention_mask=attention_mask,
                         use_cache=False,
                         prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
                         chunk_prefill=chunk_prefill,
-                        block_idx=1 if chunk_idx == 0 else (None if (prefill or chunk_prefill) else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                        block_idx=None if (chunk_idx == 0 or prefill or chunk_prefill) else chunk_idx,  # ← Must be None for first chunk
                     )
                     x0_pred = self._velocity_to_x0(x_noisy, v_pred, current_t, num_train_timesteps)
                     break
@@ -1378,11 +1334,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
                     x=x_for_cache,
                     t=t_cache,
                     context=context,
-                    attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                    attention_mask=attention_mask,
                     use_cache=True,
                     prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
                     chunk_prefill=chunk_prefill,
-                    block_idx=1 if chunk_idx == 0 else (None if (prefill or chunk_prefill) else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                    block_idx=None if (chunk_idx == 0 or prefill or chunk_prefill) else chunk_idx,  # ← Must be None for first chunk
                 )
 
             all_x0_pred.append(x0_pred)
@@ -1392,23 +1348,6 @@ class WanModelCausalTrainingWrapper(nn.Module):
 
         x0_pred_all = torch.cat(all_x0_pred, dim=2)
         x0_target_all = torch.cat(all_x0_target, dim=2)
-
-        # DEBUG: Check outputs before returning
-        if torch.isnan(x0_pred_all).any() or torch.isinf(x0_pred_all).any():
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"[DEBUG NaN] forward_self_forcing_multistep_aligned: x0_pred_all contains NaN/Inf: "
-                        f"nan_count={torch.isnan(x0_pred_all).sum().item()}, "
-                        f"inf_count={torch.isinf(x0_pred_all).sum().item()}, "
-                        f"shape={x0_pred_all.shape}, exit_step={exit_step_idx}")
-        
-        if torch.isnan(x0_target_all).any() or torch.isinf(x0_target_all).any():
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"[DEBUG NaN] forward_self_forcing_multistep_aligned: x0_target_all contains NaN/Inf: "
-                        f"nan_count={torch.isnan(x0_target_all).sum().item()}, "
-                        f"inf_count={torch.isinf(x0_target_all).sum().item()}, "
-                        f"shape={x0_target_all.shape}")
 
         if debug:
             print(f"[TRAIN_ALIGNED_MS] Done: exit_step={exit_step_idx}")
