@@ -1,0 +1,491 @@
+[
+  {
+    "video": "/mnt/shared-storage-user/kangli/workspace/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal/pick_dual_bottles/episode0.mp4",
+    "task": "pick_dual_bottles",
+    "total_frames": 160,
+    "task_decomposition": {
+      "test": "task_decomposition",
+      "task": "pick_dual_bottles",
+      "task_description": "pick up one bottle with one arm, and pick up another bottle with the other arm",
+      "latency_s": 6.87,
+      "result": {
+        "task": "pick_dual_bottles",
+        "phases": [
+          {
+            "phase_id": 0,
+            "name": "approach_bottle_left",
+            "description": "The left arm approaches the Coca-Cola bottle.",
+            "completion_criteria": "The left arm is positioned near the Coca-Cola bottle."
+          },
+          {
+            "phase_id": 1,
+            "name": "grasp_left",
+            "description": "The left arm grasps the Coca-Cola bottle.",
+            "completion_criteria": "The left arm is holding the Coca-Cola bottle."
+          },
+          {
+            "phase_id": 2,
+            "name": "approach_bottle_right",
+            "description": "The right arm approaches the green bottle.",
+            "completion_criteria": "The right arm is positioned near the green bottle."
+          },
+          {
+            "phase_id": 3,
+            "name": "grasp_right",
+            "description": "The right arm grasps the green bottle.",
+            "completion_criteria": "The right arm is holding the green bottle."
+          }
+        ]
+      }
+    },
+    "phase_detection": [
+      {
+        "test": "phase_detection",
+        "frame_index": 0,
+        "latency_s": 1.88,
+        "result": {
+          "current_phase_id": 0,
+          "phase_name": "approach_bottle_left",
+          "confidence": "high",
+          "phase_status": "not_started",
+          "reasoning": "The left arm is positioned near the Coca-Cola bottle, indicating it is about to start the approach phase."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 22,
+        "latency_s": 1.77,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "approach_bottle_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the green bottle, indicating it is approaching to grasp it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 45,
+        "latency_s": 1.86,
+        "result": {
+          "current_phase_id": 3,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "Both arms are positioned to grasp their respective bottles, indicating that the 'grasp_right' phase is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 68,
+        "latency_s": 1.88,
+        "result": {
+          "current_phase_id": 3,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned to grasp the green bottle, indicating that the phase 'grasp_right' is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 90,
+        "latency_s": 1.84,
+        "result": {
+          "current_phase_id": 3,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned to grasp the green bottle, indicating that the phase 'grasp_right' is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 113,
+        "latency_s": 1.79,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "approach_bottle_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the green bottle, indicating it is approaching to grasp it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 136,
+        "latency_s": 1.79,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "approach_bottle_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the green bottle, indicating it is approaching to grasp it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 159,
+        "latency_s": 1.79,
+        "result": {
+          "current_phase_id": 3,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is holding the green bottle, indicating that the grasp_right phase is ongoing."
+        }
+      }
+    ],
+    "completion_detection": {
+      "test": "completion_detection",
+      "early_frame": 0,
+      "late_frame": 159,
+      "latency_s": 3.28,
+      "result": {
+        "image1": {
+          "frame": 0,
+          "progress_pct": 0,
+          "description": "The robot's arms are positioned above the table, ready to pick up the bottles."
+        },
+        "image2": {
+          "frame": 159,
+          "progress_pct": 100,
+          "description": "Both arms have successfully picked up their respective bottles, with one arm holding a red Coca-Cola bottle and the other arm holding a green Sprite bottle."
+        },
+        "progress_order_correct": true
+      }
+    },
+    "phase_monotonic": false,
+    "total_latency_s": 24.75
+  },
+  {
+    "video": "/mnt/shared-storage-user/kangli/workspace/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal/pick_dual_bottles/episode0_mask_160.mp4",
+    "task": "pick_dual_bottles",
+    "total_frames": 160,
+    "task_decomposition": {
+      "test": "task_decomposition",
+      "task": "pick_dual_bottles",
+      "task_description": "pick up one bottle with one arm, and pick up another bottle with the other arm",
+      "latency_s": 8.92,
+      "result": {
+        "task": "pick_dual_bottles",
+        "phases": [
+          {
+            "phase_id": 0,
+            "name": "approach_bottle_left",
+            "description": "The left arm approaches the red bottle.",
+            "completion_criteria": "The left arm is positioned near the red bottle."
+          },
+          {
+            "phase_id": 1,
+            "name": "grasp_left",
+            "description": "The left arm grasps the red bottle.",
+            "completion_criteria": "The left hand is in contact with the red bottle."
+          },
+          {
+            "phase_id": 2,
+            "name": "lift_left",
+            "description": "The left arm lifts the red bottle.",
+            "completion_criteria": "The red bottle is being lifted by the left arm."
+          },
+          {
+            "phase_id": 3,
+            "name": "approach_bottle_right",
+            "description": "The right arm approaches the green bottle.",
+            "completion_criteria": "The right arm is positioned near the green bottle."
+          },
+          {
+            "phase_id": 4,
+            "name": "grasp_right",
+            "description": "The right arm grasps the green bottle.",
+            "completion_criteria": "The right hand is in contact with the green bottle."
+          },
+          {
+            "phase_id": 5,
+            "name": "lift_right",
+            "description": "The right arm lifts the green bottle.",
+            "completion_criteria": "The green bottle is being lifted by the right arm."
+          }
+        ]
+      }
+    },
+    "phase_detection": [
+      {
+        "test": "phase_detection",
+        "frame_index": 0,
+        "latency_s": 1.96,
+        "result": {
+          "current_phase_id": 0,
+          "phase_name": "approach_bottle_left",
+          "confidence": "high",
+          "phase_status": "not_started",
+          "reasoning": "The left arm is positioned near the red bottle, indicating it is about to start approaching it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 22,
+        "latency_s": 2.61,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "lift_left",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The left arm is holding the red bottle, indicating that the 'grasp_left' and 'lift_left' phases have been completed. The right arm is approaching the green bottle, suggesting that the 'approach_bottle_right' phase is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 45,
+        "latency_s": 1.84,
+        "result": {
+          "current_phase_id": 4,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the green bottle, indicating it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 68,
+        "latency_s": 1.98,
+        "result": {
+          "current_phase_id": 5,
+          "phase_name": "lift_right",
+          "confidence": "high",
+          "phase_status": "complete",
+          "reasoning": "The robot's right arm is in the process of lifting the green bottle, which aligns with the 'lift_right' phase."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 90,
+        "latency_s": 2.05,
+        "result": {
+          "current_phase_id": 5,
+          "phase_name": "lift_right",
+          "confidence": "high",
+          "phase_status": "complete",
+          "reasoning": "Both arms appear to be in the final position of lifting bottles, with the left arm holding a red bottle and the right arm holding a green bottle."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 113,
+        "latency_s": 2.25,
+        "result": {
+          "current_phase_id": 4,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the green bottle, and the fingers appear to be in a grasping position, indicating that the robot is in the process of grasping the bottle."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 136,
+        "latency_s": 2.16,
+        "result": {
+          "current_phase_id": 4,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the green bottle, and the left arm appears to be in a position that suggests it has just completed the 'lift_left' phase."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 159,
+        "latency_s": 2.2,
+        "result": {
+          "current_phase_id": 4,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the green bottle, and the fingers appear to be in a grasping position, indicating that the robot is in the process of grasping the bottle."
+        }
+      }
+    ],
+    "completion_detection": {
+      "test": "completion_detection",
+      "early_frame": 0,
+      "late_frame": 159,
+      "latency_s": 3.47,
+      "result": {
+        "image1": {
+          "frame": 0,
+          "progress_pct": 0,
+          "description": "The robot is preparing to pick up the bottles. One arm is extended towards the red bottle, while the other arm is positioned near the green bottle."
+        },
+        "image2": {
+          "frame": 159,
+          "progress_pct": 100,
+          "description": "The robot has successfully picked up both bottles. The left arm holds the red bottle, and the right arm holds the green bottle."
+        },
+        "progress_order_correct": true
+      }
+    },
+    "phase_monotonic": false,
+    "total_latency_s": 29.44
+  },
+  {
+    "video": "/mnt/shared-storage-user/kangli/workspace/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal/pick_dual_bottles/episode0_pred_160.mp4",
+    "task": "pick_dual_bottles",
+    "total_frames": 160,
+    "task_decomposition": {
+      "test": "task_decomposition",
+      "task": "pick_dual_bottles",
+      "task_description": "pick up one bottle with one arm, and pick up another bottle with the other arm",
+      "latency_s": 6.23,
+      "result": {
+        "task": "pick_dual_bottles",
+        "phases": [
+          {
+            "phase_id": 0,
+            "name": "approach_bottle_left",
+            "description": "The left arm approaches the green bottle.",
+            "completion_criteria": "The left arm is positioned near the green bottle."
+          },
+          {
+            "phase_id": 1,
+            "name": "grasp_left",
+            "description": "The left arm grasps the green bottle.",
+            "completion_criteria": "The green bottle is held by the left arm."
+          },
+          {
+            "phase_id": 2,
+            "name": "approach_bottle_right",
+            "description": "The right arm approaches the Coca-Cola bottle.",
+            "completion_criteria": "The right arm is positioned near the Coca-Cola bottle."
+          },
+          {
+            "phase_id": 3,
+            "name": "grasp_right",
+            "description": "The right arm grasps the Coca-Cola bottle.",
+            "completion_criteria": "The Coca-Cola bottle is held by the right arm."
+          }
+        ]
+      }
+    },
+    "phase_detection": [
+      {
+        "test": "phase_detection",
+        "frame_index": 0,
+        "latency_s": 1.89,
+        "result": {
+          "current_phase_id": 0,
+          "phase_name": "approach_bottle_left",
+          "confidence": "high",
+          "phase_status": "not_started",
+          "reasoning": "The left arm is positioned near the green bottle, indicating it is about to start the approach phase."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 22,
+        "latency_s": 1.87,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "approach_bottle_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the Coca-Cola bottle, indicating it is approaching to grasp it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 45,
+        "latency_s": 1.97,
+        "result": {
+          "current_phase_id": 3,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned to grasp the Coca-Cola bottle, indicating that the phase 'grasp_right' is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 68,
+        "latency_s": 1.93,
+        "result": {
+          "current_phase_id": 3,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned to grasp the Coca-Cola bottle, indicating that the phase 'grasp_right' is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 90,
+        "latency_s": 1.91,
+        "result": {
+          "current_phase_id": 3,
+          "phase_name": "grasp_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned to grasp the Coca-Cola bottle, indicating that the phase 'grasp_right' is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 113,
+        "latency_s": 1.74,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp_left",
+          "confidence": "high",
+          "phase_status": "complete",
+          "reasoning": "The left arm is holding the green bottle, indicating that the grasp_left phase is complete."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 136,
+        "latency_s": 1.82,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "approach_bottle_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the Coca-Cola bottle, indicating it is approaching to grasp it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 159,
+        "latency_s": 1.84,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "approach_bottle_right",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The right arm is positioned near the Coca-Cola bottle, indicating it is approaching to grasp it."
+        }
+      }
+    ],
+    "completion_detection": {
+      "test": "completion_detection",
+      "early_frame": 0,
+      "late_frame": 159,
+      "latency_s": 3.15,
+      "result": {
+        "image1": {
+          "frame": 0,
+          "progress_pct": 0,
+          "description": "The robot arms are positioned above the bottles on the table, preparing to pick them up."
+        },
+        "image2": {
+          "frame": 159,
+          "progress_pct": 100,
+          "description": "Both arms have successfully picked up their respective bottles, with one arm holding a red bottle and the other holding a green bottle."
+        },
+        "progress_order_correct": true
+      }
+    },
+    "phase_monotonic": false,
+    "total_latency_s": 24.35
+  }
+]

@@ -1,0 +1,461 @@
+[
+  {
+    "video": "/mnt/shared-storage-user/kangli/workspace/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal/adjust_bottle/episode0.mp4",
+    "task": "adjust_bottle",
+    "total_frames": 51,
+    "task_decomposition": {
+      "test": "task_decomposition",
+      "task": "adjust_bottle",
+      "task_description": "Pick up the bottle on the table headup with the correct arm",
+      "latency_s": 8.16,
+      "result": {
+        "task": "adjust_bottle",
+        "phases": [
+          {
+            "phase_id": 0,
+            "name": "approach_bottle",
+            "description": "The robot's arms move towards the green bottle on the table.",
+            "completion_criteria": "The robot's grippers are positioned close to the bottle."
+          },
+          {
+            "phase_id": 1,
+            "name": "grasp",
+            "description": "The robot's grippers close around the bottle and lift it slightly off the table.",
+            "completion_criteria": "The bottle is held securely by the grippers without tilting or spilling."
+          },
+          {
+            "phase_id": 2,
+            "name": "lift",
+            "description": "The robot lifts the bottle upwards, keeping it upright.",
+            "completion_criteria": "The bottle is held vertically above the table."
+          }
+        ]
+      }
+    },
+    "phase_detection": [
+      {
+        "test": "phase_detection",
+        "frame_index": 0,
+        "latency_s": 1.74,
+        "result": {
+          "current_phase_id": 0,
+          "phase_name": "approach_bottle",
+          "confidence": "high",
+          "phase_status": "not_started",
+          "reasoning": "The robot's arms are positioned near the bottle, indicating they are about to start approaching it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 7,
+        "latency_s": 1.88,
+        "result": {
+          "current_phase_id": 0,
+          "phase_name": "approach_bottle",
+          "confidence": "medium",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's arms are positioned near the bottle, indicating that they are approaching it for the next phase."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 14,
+        "latency_s": 1.75,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that the grasping action is in progress."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 21,
+        "latency_s": 1.79,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that the grasping action is in progress."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 28,
+        "latency_s": 1.79,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that the grasping action is in progress."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 35,
+        "latency_s": 1.8,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers appear to be closing around the bottle, indicating that the grasping phase is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 42,
+        "latency_s": 1.71,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are closed around the bottle, indicating that the grasping phase is ongoing."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 50,
+        "latency_s": 2.2,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "lift",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are holding the bottle, and the bottle appears to be lifted slightly, indicating that the 'grasp' phase has been completed and the 'lift' phase is ongoing."
+        }
+      }
+    ],
+    "completion_detection": {
+      "test": "completion_detection",
+      "early_frame": 0,
+      "late_frame": 50,
+      "latency_s": 2.91,
+      "result": {
+        "image1": {
+          "frame": 0,
+          "progress_pct": 0,
+          "description": "The robot's arm is positioned near the green bottle on the table, preparing to pick it up."
+        },
+        "image2": {
+          "frame": 50,
+          "progress_pct": 100,
+          "description": "The robot has successfully lifted the green bottle off the table and is holding it above the surface."
+        },
+        "progress_order_correct": true
+      }
+    },
+    "phase_monotonic": true,
+    "total_latency_s": 25.73
+  },
+  {
+    "video": "/mnt/shared-storage-user/kangli/workspace/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal/adjust_bottle/episode0_mask_64.mp4",
+    "task": "adjust_bottle",
+    "total_frames": 64,
+    "task_decomposition": {
+      "test": "task_decomposition",
+      "task": "adjust_bottle",
+      "task_description": "Pick up the bottle on the table headup with the correct arm",
+      "latency_s": 4.73,
+      "result": {
+        "task": "pick_up_bottle",
+        "phases": [
+          {
+            "phase_id": 0,
+            "name": "approach_bottle",
+            "description": "The robot moves its arms towards the bottle on the table.",
+            "completion_criteria": "The robot's arms are positioned close to the bottle."
+          },
+          {
+            "phase_id": 1,
+            "name": "grasp",
+            "description": "The robot uses its grippers to grasp the bottle.",
+            "completion_criteria": "The grippers are in contact with the bottle."
+          },
+          {
+            "phase_id": 2,
+            "name": "lift",
+            "description": "The robot lifts the bottle off the table.",
+            "completion_criteria": "The bottle is lifted and held by the grippers."
+          }
+        ]
+      }
+    },
+    "phase_detection": [
+      {
+        "test": "phase_detection",
+        "frame_index": 0,
+        "latency_s": 1.83,
+        "result": {
+          "current_phase_id": 0,
+          "phase_name": "approach_bottle",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's arms are positioned close to the bottle, indicating it is in the process of approaching it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 9,
+        "latency_s": 1.69,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "lift",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's arms are positioned above the bottle, indicating it is in the process of lifting it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 18,
+        "latency_s": 1.92,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 27,
+        "latency_s": 1.8,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 36,
+        "latency_s": 1.8,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 45,
+        "latency_s": 1.76,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "lift",
+          "confidence": "medium",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's arms are positioned above the bottle, suggesting it is in the process of lifting it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 54,
+        "latency_s": 1.89,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 63,
+        "latency_s": 1.83,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      }
+    ],
+    "completion_detection": {
+      "test": "completion_detection",
+      "early_frame": 0,
+      "late_frame": 63,
+      "latency_s": 2.69,
+      "result": {
+        "image1": {
+          "frame": 0,
+          "progress_pct": 0,
+          "description": "The robot is positioned above the table, preparing to pick up the bottle."
+        },
+        "image2": {
+          "frame": 63,
+          "progress_pct": 100,
+          "description": "The robot has successfully picked up the bottle and is holding it securely."
+        },
+        "progress_order_correct": true
+      }
+    },
+    "phase_monotonic": false,
+    "total_latency_s": 21.94
+  },
+  {
+    "video": "/mnt/shared-storage-user/kangli/workspace/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal/adjust_bottle/episode0_pred_64.mp4",
+    "task": "adjust_bottle",
+    "total_frames": 64,
+    "task_decomposition": {
+      "test": "task_decomposition",
+      "task": "adjust_bottle",
+      "task_description": "Pick up the bottle on the table headup with the correct arm",
+      "latency_s": 4.67,
+      "result": {
+        "task": "adjust_bottle",
+        "phases": [
+          {
+            "phase_id": 0,
+            "name": "approach_bottle",
+            "description": "The robot approaches the green bottle on the table.",
+            "completion_criteria": "The robot's grippers are positioned near the bottle."
+          },
+          {
+            "phase_id": 1,
+            "name": "grasp",
+            "description": "The robot uses its grippers to grasp the bottle.",
+            "completion_criteria": "The bottle is securely held by the robot's grippers."
+          },
+          {
+            "phase_id": 2,
+            "name": "lift",
+            "description": "The robot lifts the bottle off the table.",
+            "completion_criteria": "The bottle is lifted and held above the table."
+          }
+        ]
+      }
+    },
+    "phase_detection": [
+      {
+        "test": "phase_detection",
+        "frame_index": 0,
+        "latency_s": 1.77,
+        "result": {
+          "current_phase_id": 0,
+          "phase_name": "approach_bottle",
+          "confidence": "high",
+          "phase_status": "not_started",
+          "reasoning": "The robot's arms are positioned above the bottle, indicating it is preparing to approach it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 9,
+        "latency_s": 1.89,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 18,
+        "latency_s": 1.85,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 27,
+        "latency_s": 1.87,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 36,
+        "latency_s": 1.84,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 45,
+        "latency_s": 1.71,
+        "result": {
+          "current_phase_id": 2,
+          "phase_name": "lift",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's arm is positioned above the bottle, indicating it is in the process of lifting it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 54,
+        "latency_s": 1.85,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      },
+      {
+        "test": "phase_detection",
+        "frame_index": 63,
+        "latency_s": 1.87,
+        "result": {
+          "current_phase_id": 1,
+          "phase_name": "grasp",
+          "confidence": "high",
+          "phase_status": "in_progress",
+          "reasoning": "The robot's grippers are positioned around the bottle, indicating that it is in the process of grasping it."
+        }
+      }
+    ],
+    "completion_detection": {
+      "test": "completion_detection",
+      "early_frame": 0,
+      "late_frame": 63,
+      "latency_s": 3.04,
+      "result": {
+        "image1": {
+          "frame": 0,
+          "progress_pct": 0,
+          "description": "The robot's arms are positioned above the table, but neither arm is yet engaged with the bottle."
+        },
+        "image2": {
+          "frame": 63,
+          "progress_pct": 50,
+          "description": "One of the robot's arms has successfully grasped the bottle, while the other arm appears to be in a supporting position."
+        },
+        "progress_order_correct": true
+      }
+    },
+    "phase_monotonic": false,
+    "total_latency_s": 22.36
+  }
+]

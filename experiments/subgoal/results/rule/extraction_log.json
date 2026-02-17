@@ -1,0 +1,416 @@
+[
+  {
+    "episode_name": "episode_000000",
+    "hdf5_path": "/mnt/shared-storage-user/kangli/workspace/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5/episode_000000.hdf5",
+    "total_frames": 67,
+    "instruction": "The whole scene is in a realistic, industrial art style with three views: a fixed head camera, a movable left wrist camera, and a movable right wrist camera. The franka robot is currently performing the following task: stack_bowls_two",
+    "strategies": {
+      "uniform": {
+        "n_keyframes": 10,
+        "frame_indices": [
+          0,
+          8,
+          16,
+          24,
+          32,
+          40,
+          48,
+          56,
+          64,
+          66
+        ],
+        "params": {
+          "strategy": "uniform",
+          "interval": 8
+        }
+      },
+      "gripper": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          66
+        ],
+        "params": {
+          "strategy": "gripper",
+          "gripper_threshold": 0.3
+        }
+      },
+      "visual": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          66
+        ],
+        "params": {
+          "strategy": "visual_change"
+        }
+      },
+      "action_milestone": {
+        "n_keyframes": 3,
+        "frame_indices": [
+          0,
+          34,
+          66
+        ],
+        "params": {
+          "strategy": "action_milestone"
+        }
+      },
+      "semantic": {
+        "n_keyframes": 7,
+        "frame_indices": [
+          0,
+          7,
+          25,
+          32,
+          42,
+          56,
+          66
+        ],
+        "params": {
+          "strategy": "semantic"
+        }
+      },
+      "composite": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          66
+        ],
+        "params": {
+          "strategy": "composite"
+        }
+      }
+    }
+  },
+  {
+    "episode_name": "episode_000001",
+    "hdf5_path": "/mnt/shared-storage-user/kangli/workspace/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5/episode_000001.hdf5",
+    "total_frames": 65,
+    "instruction": "The whole scene is in a realistic, industrial art style with three views: a fixed head camera, a movable left wrist camera, and a movable right wrist camera. The franka robot is currently performing the following task: stack_bowls_two",
+    "strategies": {
+      "uniform": {
+        "n_keyframes": 9,
+        "frame_indices": [
+          0,
+          8,
+          16,
+          24,
+          32,
+          40,
+          48,
+          56,
+          64
+        ],
+        "params": {
+          "strategy": "uniform",
+          "interval": 8
+        }
+      },
+      "gripper": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          64
+        ],
+        "params": {
+          "strategy": "gripper",
+          "gripper_threshold": 0.3
+        }
+      },
+      "visual": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          64
+        ],
+        "params": {
+          "strategy": "visual_change"
+        }
+      },
+      "action_milestone": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          64
+        ],
+        "params": {
+          "strategy": "action_milestone"
+        }
+      },
+      "semantic": {
+        "n_keyframes": 6,
+        "frame_indices": [
+          0,
+          7,
+          23,
+          37,
+          56,
+          64
+        ],
+        "params": {
+          "strategy": "semantic"
+        }
+      },
+      "composite": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          64
+        ],
+        "params": {
+          "strategy": "composite"
+        }
+      }
+    }
+  },
+  {
+    "episode_name": "episode_000002",
+    "hdf5_path": "/mnt/shared-storage-user/kangli/workspace/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5/episode_000002.hdf5",
+    "total_frames": 64,
+    "instruction": "The whole scene is in a realistic, industrial art style with three views: a fixed head camera, a movable left wrist camera, and a movable right wrist camera. The franka robot is currently performing the following task: stack_bowls_two",
+    "strategies": {
+      "uniform": {
+        "n_keyframes": 9,
+        "frame_indices": [
+          0,
+          8,
+          16,
+          24,
+          32,
+          40,
+          48,
+          56,
+          63
+        ],
+        "params": {
+          "strategy": "uniform",
+          "interval": 8
+        }
+      },
+      "gripper": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          63
+        ],
+        "params": {
+          "strategy": "gripper",
+          "gripper_threshold": 0.3
+        }
+      },
+      "visual": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          63
+        ],
+        "params": {
+          "strategy": "visual_change"
+        }
+      },
+      "action_milestone": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          63
+        ],
+        "params": {
+          "strategy": "action_milestone"
+        }
+      },
+      "semantic": {
+        "n_keyframes": 5,
+        "frame_indices": [
+          0,
+          24,
+          39,
+          55,
+          63
+        ],
+        "params": {
+          "strategy": "semantic"
+        }
+      },
+      "composite": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          63
+        ],
+        "params": {
+          "strategy": "composite"
+        }
+      }
+    }
+  },
+  {
+    "episode_name": "episode_000003",
+    "hdf5_path": "/mnt/shared-storage-user/kangli/workspace/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5/episode_000003.hdf5",
+    "total_frames": 69,
+    "instruction": "The whole scene is in a realistic, industrial art style with three views: a fixed head camera, a movable left wrist camera, and a movable right wrist camera. The franka robot is currently performing the following task: stack_bowls_two",
+    "strategies": {
+      "uniform": {
+        "n_keyframes": 10,
+        "frame_indices": [
+          0,
+          8,
+          16,
+          24,
+          32,
+          40,
+          48,
+          56,
+          64,
+          68
+        ],
+        "params": {
+          "strategy": "uniform",
+          "interval": 8
+        }
+      },
+      "gripper": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          68
+        ],
+        "params": {
+          "strategy": "gripper",
+          "gripper_threshold": 0.3
+        }
+      },
+      "visual": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          68
+        ],
+        "params": {
+          "strategy": "visual_change"
+        }
+      },
+      "action_milestone": {
+        "n_keyframes": 3,
+        "frame_indices": [
+          0,
+          35,
+          68
+        ],
+        "params": {
+          "strategy": "action_milestone"
+        }
+      },
+      "semantic": {
+        "n_keyframes": 7,
+        "frame_indices": [
+          0,
+          8,
+          26,
+          33,
+          43,
+          58,
+          68
+        ],
+        "params": {
+          "strategy": "semantic"
+        }
+      },
+      "composite": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          68
+        ],
+        "params": {
+          "strategy": "composite"
+        }
+      }
+    }
+  },
+  {
+    "episode_name": "episode_000004",
+    "hdf5_path": "/mnt/shared-storage-user/kangli/workspace/cyujie/mounts/qinyiran/datasets/robotwin/processed/hdf5/episode_000004.hdf5",
+    "total_frames": 67,
+    "instruction": "The whole scene is in a realistic, industrial art style with three views: a fixed head camera, a movable left wrist camera, and a movable right wrist camera. The franka robot is currently performing the following task: stack_bowls_two",
+    "strategies": {
+      "uniform": {
+        "n_keyframes": 10,
+        "frame_indices": [
+          0,
+          8,
+          16,
+          24,
+          32,
+          40,
+          48,
+          56,
+          64,
+          66
+        ],
+        "params": {
+          "strategy": "uniform",
+          "interval": 8
+        }
+      },
+      "gripper": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          66
+        ],
+        "params": {
+          "strategy": "gripper",
+          "gripper_threshold": 0.3
+        }
+      },
+      "visual": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          66
+        ],
+        "params": {
+          "strategy": "visual_change"
+        }
+      },
+      "action_milestone": {
+        "n_keyframes": 3,
+        "frame_indices": [
+          0,
+          34,
+          66
+        ],
+        "params": {
+          "strategy": "action_milestone"
+        }
+      },
+      "semantic": {
+        "n_keyframes": 8,
+        "frame_indices": [
+          0,
+          8,
+          22,
+          27,
+          32,
+          42,
+          59,
+          66
+        ],
+        "params": {
+          "strategy": "semantic"
+        }
+      },
+      "composite": {
+        "n_keyframes": 2,
+        "frame_indices": [
+          0,
+          66
+        ],
+        "params": {
+          "strategy": "composite"
+        }
+      }
+    }
+  }
+]
