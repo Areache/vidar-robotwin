@@ -12,9 +12,15 @@ import torch.nn as nn
 from .base import BaseTrainer
 from ..config import VidarConfig
 from ..models.wrapper_causal import WanModelCausalTrainingWrapper
-from ..losses import sample_timestep, sample_timestep_for_truncation
+from ..losses import sample_timestep
+from ..utils.timing import time_block
 
 logger = logging.getLogger(__name__)
+
+
+# Self-Forcing training modes
+SELF_FORCING_MODE_SINGLE_STEP = "single_step"  # Original: single timestep per batch
+SELF_FORCING_MODE_MULTI_STEP = "multi_step"    # New: full denoising trajectory (like guandeh17/Self-Forcing)
 
 
 class LoRALinear(nn.Module):
@@ -133,10 +139,6 @@ class VidarCausalTrainer(BaseTrainer):
     - Autoregressive rollout with chunk-wise processing
     - Embodiment-aware loss with higher weight on robot regions
 
-    Additional optimizations:
-    - Few-step diffusion: Use fewer denoising steps for efficiency
-    - Stochastic gradient truncation: Only backprop through one random timestep
-
     Loss function (with embodiment-aware weighting):
     L = ||(1 + η·U(x_1)) ⊙ (v_θ(x_t, t, c) - (x_0 - x_1))||²
 
@@ -165,23 +167,41 @@ class VidarCausalTrainer(BaseTrainer):
         if self.use_lora:
             logger.info(f"LoRA enabled with rank={config.lora.rank}, alpha={config.lora.alpha}")
 
-        # Few-Step Diffusion & Stochastic Gradient Truncation parameters
-        self.num_inference_steps = getattr(config.diffusion, "num_inference_steps", 10)
-        self.num_train_timesteps = getattr(config.diffusion, "num_train_timesteps", 1000)
-        self.stochastic_truncation = getattr(config.diffusion, "stochastic_truncation", True)
-        self.truncation_strategy = getattr(config.diffusion, "truncation_strategy", "uniform")
-        self.detach_kv_cache = getattr(config.diffusion, "detach_kv_cache", True)
+        # Self-Forcing training mode: "single_step" or "multi_step"
+        # - single_step: Original approach, sample one timestep, add noise, predict velocity
+        # - multi_step: Full denoising trajectory simulation (like guandeh17/Self-Forcing)
+        self.sf_mode = getattr(config.self_forcing, "mode", SELF_FORCING_MODE_SINGLE_STEP)
 
-        # Importance sampling parameters (for strategy="importance")
-        self.importance_low_t = getattr(config.diffusion, "importance_low_t", 0.3)
-        self.importance_high_t = getattr(config.diffusion, "importance_high_t", 0.7)
-        self.importance_weight = getattr(config.diffusion, "importance_weight", 3.0)
+        # Multi-step training parameters (only used when sf_mode="multi_step")
+        self.num_inference_steps = getattr(config.self_forcing, "num_inference_steps", 10)
+        self.timestep_shift = getattr(config.self_forcing, "timestep_shift", 8.0)
+        self.context_noise = getattr(config.self_forcing, "context_noise", 0.0)
+        self.num_train_timesteps = getattr(config.self_forcing, "num_train_timesteps", 1000)
 
-        if self.stochastic_truncation:
-            logger.info(f"Stochastic Gradient Truncation enabled: strategy={self.truncation_strategy}")
-            logger.info(f"Few-Step Diffusion: num_inference_steps={self.num_inference_steps}")
-            if self.truncation_strategy == "importance":
-                logger.info(f"  Importance sampling: t=[{self.importance_low_t}, {self.importance_high_t}], weight={self.importance_weight}")
+        # Train-Eval Alignment parameters (use aligned functions)
+        self.use_aligned = getattr(config.self_forcing, "use_aligned", False)
+        self.simulate_cache_pop = getattr(config.self_forcing, "simulate_cache_pop", True)
+        self.sink_frames = getattr(config.self_forcing, "sink_frames", 1)
+        self.frames_per_round = getattr(config.self_forcing, "frames_per_round", 4)
+        self.aligned_shift = getattr(config.self_forcing, "shift", 5.0)
+        self.aligned_debug = getattr(config.self_forcing, "debug", False)
+
+        if self.use_self_forcing and self.sf_mode == SELF_FORCING_MODE_MULTI_STEP:
+            logger.info(f"Self-Forcing Mode: MULTI-STEP (simulates denoising trajectory)")
+            logger.info(f"  num_inference_steps={self.num_inference_steps}")
+            logger.info(f"  timestep_shift={self.timestep_shift}")
+            logger.info(f"  context_noise={self.context_noise}")
+        elif self.use_self_forcing:
+            logger.info(f"Self-Forcing Mode: SINGLE-STEP (original approach)")
+
+        # Log alignment settings
+        if self.use_self_forcing and self.use_aligned:
+            logger.info(f"Train-Eval Alignment: ENABLED")
+            logger.info(f"  simulate_cache_pop={self.simulate_cache_pop}")
+            logger.info(f"  sink_frames={self.sink_frames}")
+            logger.info(f"  frames_per_round={self.frames_per_round}")
+            logger.info(f"  shift={self.aligned_shift}")
+            logger.info(f"  debug={self.aligned_debug}")
 
     def _build_model(self) -> nn.Module:
         """Build WanModelCausal training wrapper."""
@@ -196,6 +216,7 @@ class VidarCausalTrainer(BaseTrainer):
             freeze_vae="vae" in self.config.training.freeze,
             gradient_checkpointing=cfg.gradient_checkpointing,
             device=self.device,
+            debug=self.aligned_debug,
         )
 
         # Return the DiT for FSDP wrapping
@@ -344,9 +365,9 @@ class VidarCausalTrainer(BaseTrainer):
         """
         Training step with Self-Forcing.
 
-        Implements stochastic gradient truncation when enabled:
-        - Only backpropagates through a randomly selected timestep
-        - Significantly reduces computation while maintaining effectiveness
+        Supports two modes:
+        - single_step: Original approach, sample one timestep, add noise, predict velocity
+        - multi_step: Full denoising trajectory simulation (like guandeh17/Self-Forcing)
 
         Note: This method is NOT compatible with activation_checkpointing
         due to KV cache accumulation.
@@ -366,229 +387,200 @@ class VidarCausalTrainer(BaseTrainer):
 
         # Encode video to latent space
         with torch.no_grad():
-            x_clean = self._encode_video(video)  # (B, C_latent, T', H', W')
+            with time_block("VAE Encode", device=self.device):
+                x_clean = self._encode_video(video)  # (B, C_latent, T', H', W')
 
         # Encode text
         with torch.no_grad():
-            context = self._encode_text(instructions)  # (B, L, D)
+            with time_block("T5 Encode", device=self.device):
+                context = self._encode_text(instructions)  # (B, L, D)
 
-        # Sample timesteps using appropriate strategy
-        if self.stochastic_truncation:
-            # Use stochastic gradient truncation sampling
-            t = sample_timestep_for_truncation(
-                B, self.device,
-                strategy=self.truncation_strategy,
-                num_train_timesteps=self.num_train_timesteps,
-                importance_low_t=self.importance_low_t,
-                importance_high_t=self.importance_high_t,
-                importance_weight=self.importance_weight,
-                num_strata=self.num_inference_steps,  # Use same number as inference steps
-            )
+        # Route to appropriate Self-Forcing mode
+        if self.sf_mode == SELF_FORCING_MODE_MULTI_STEP:
+            return self._train_step_sf_multistep(x_clean, context, batch)
         else:
-            # Standard uniform sampling
-            num_train_timesteps = getattr(self.wrapper.dit.config, 'num_train_timesteps', 1000)
-            t = sample_timestep(B, self.device, num_train_timesteps=num_train_timesteps)
+            return self._train_step_sf_single(x_clean, context, batch)
 
-        # Self-Forcing forward pass with optional gradient truncation
-        if self.stochastic_truncation:
-            v_pred, v_target = self._forward_self_forcing_with_truncation(
-                x_clean=x_clean,
-                t=t,
-                context=context,
-            )
-        else:
-            v_pred, v_target = self.wrapper.forward_self_forcing(
-                x_clean=x_clean,
-                t=t,
-                context=context,
-                chunk_size=self.chunk_size,
-                same_t_across_chunks=self.same_t_across_chunks,
-            )
+    def _train_step_sf_single(
+        self,
+        x_clean: torch.Tensor,
+        context: torch.Tensor,
+        batch: Dict[str, Any],
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Single-step Self-Forcing (original approach).
+
+        Samples one random timestep, adds noise, predicts velocity.
+        If use_aligned=True, uses forward_self_forcing_aligned() which
+        simulates eval's cache pop + chunk_prefill behavior.
+        """
+        B = x_clean.shape[0]
+
+        # DEBUG: Check input data
+        if torch.isnan(x_clean).any() or torch.isinf(x_clean).any():
+            logger.error(f"[DEBUG NaN] x_clean contains NaN/Inf at step {self.global_step}: "
+                        f"nan_count={torch.isnan(x_clean).sum().item()}, "
+                        f"inf_count={torch.isinf(x_clean).sum().item()}, "
+                        f"shape={x_clean.shape}, "
+                        f"min={x_clean.min().item():.6f}, max={x_clean.max().item():.6f}, "
+                        f"mean={x_clean.mean().item():.6f}")
+        
+        # Check context
+        if isinstance(context, (list, tuple)):
+            for i, ctx in enumerate(context):
+                if torch.isnan(ctx).any() or torch.isinf(ctx).any():
+                    logger.error(f"[DEBUG NaN] context[{i}] contains NaN/Inf at step {self.global_step}: "
+                                f"nan_count={torch.isnan(ctx).sum().item()}, "
+                                f"inf_count={torch.isinf(ctx).sum().item()}, shape={ctx.shape}")
+        elif torch.is_tensor(context):
+            if torch.isnan(context).any() or torch.isinf(context).any():
+                logger.error(f"[DEBUG NaN] context contains NaN/Inf at step {self.global_step}: "
+                            f"nan_count={torch.isnan(context).sum().item()}, "
+                            f"inf_count={torch.isinf(context).sum().item()}, shape={context.shape}")
+
+        # Sample timesteps (scaled to [0, num_train_timesteps])
+        num_train_timesteps = getattr(self.wrapper.dit.config, 'num_train_timesteps', 1000)
+        t = sample_timestep(B, self.device, num_train_timesteps=num_train_timesteps)
+
+        # Self-Forcing forward pass
+        with time_block("Self-Forcing Forward", device=self.device):
+            if self.use_aligned:
+                # Use aligned function that matches eval's cache pop behavior
+                v_pred, v_target = self.wrapper.forward_self_forcing_aligned(
+                    x_clean=x_clean,
+                    t=t,
+                    context=context,
+                    chunk_size=self.chunk_size,
+                    same_t_across_chunks=self.same_t_across_chunks,
+                    simulate_cache_pop=self.simulate_cache_pop,
+                    sink_frames=self.sink_frames,
+                    frames_per_round=self.frames_per_round,
+                    debug=self.aligned_debug,
+                )
+            else:
+                # Original forward pass
+                v_pred, v_target = self.wrapper.forward_self_forcing(
+                    x_clean=x_clean,
+                    t=t,
+                    context=context,
+                    chunk_size=self.chunk_size,
+                    same_t_across_chunks=self.same_t_across_chunks,
+                )
+
+        # DEBUG: Check forward pass outputs
+        if torch.isnan(v_pred).any() or torch.isinf(v_pred).any():
+            logger.error(f"[DEBUG NaN] v_pred contains NaN/Inf at step {self.global_step}: "
+                        f"nan_count={torch.isnan(v_pred).sum().item()}, "
+                        f"inf_count={torch.isinf(v_pred).sum().item()}, "
+                        f"shape={v_pred.shape}, "
+                        f"min={v_pred.min().item():.6f}, max={v_pred.max().item():.6f}, "
+                        f"mean={v_pred.mean().item():.6f}, std={v_pred.std().item():.6f}")
+        
+        if torch.isnan(v_target).any() or torch.isinf(v_target).any():
+            logger.error(f"[DEBUG NaN] v_target contains NaN/Inf at step {self.global_step}: "
+                        f"nan_count={torch.isnan(v_target).sum().item()}, "
+                        f"inf_count={torch.isinf(v_target).sum().item()}, "
+                        f"shape={v_target.shape}, "
+                        f"min={v_target.min().item():.6f}, max={v_target.max().item():.6f}, "
+                        f"mean={v_target.mean().item():.6f}, std={v_target.std().item():.6f}")
 
         # Compute loss
-        if self.use_embodiment_loss and "embodiment_mask" in batch:
-            # Embodiment-aware loss
-            embodiment_mask = batch["embodiment_mask"]  # (B, 1, T, H, W)
-            loss = self._embodiment_aware_loss(v_pred, v_target, embodiment_mask)
-        else:
-            # Standard MSE loss
-            loss = torch.nn.functional.mse_loss(v_pred, v_target)
+        with time_block("Loss Computation", device=self.device):
+            if self.use_embodiment_loss and "embodiment_mask" in batch:
+                embodiment_mask = batch["embodiment_mask"]
+                
+                # DEBUG: Check embodiment_mask
+                if torch.isnan(embodiment_mask).any() or torch.isinf(embodiment_mask).any():
+                    logger.error(f"[DEBUG NaN] embodiment_mask contains NaN/Inf at step {self.global_step}: "
+                                f"nan_count={torch.isnan(embodiment_mask).sum().item()}, "
+                                f"inf_count={torch.isinf(embodiment_mask).sum().item()}, "
+                                f"shape={embodiment_mask.shape}")
+                
+                loss = self._embodiment_aware_loss(v_pred, v_target, embodiment_mask)
+            else:
+                loss = torch.nn.functional.mse_loss(v_pred, v_target)
+
+        # DEBUG: Check loss
+        if torch.isnan(loss) or torch.isinf(loss):
+            logger.error(f"[DEBUG NaN] Loss is NaN/Inf at step {self.global_step}: "
+                        f"loss={loss.item()}, "
+                        f"v_pred_stats=(min={v_pred.min().item():.6f}, "
+                        f"max={v_pred.max().item():.6f}, mean={v_pred.mean().item():.6f}, "
+                        f"std={v_pred.std().item():.6f}), "
+                        f"v_target_stats=(min={v_target.min().item():.6f}, "
+                        f"max={v_target.max().item():.6f}, mean={v_target.mean().item():.6f}, "
+                        f"std={v_target.std().item():.6f})")
 
         return {"loss": loss}
 
-    def _forward_self_forcing_with_truncation(
+    def _train_step_sf_multistep(
         self,
         x_clean: torch.Tensor,
-        t: torch.Tensor,
         context: torch.Tensor,
-    ) -> tuple:
+        batch: Dict[str, Any],
+    ) -> Dict[str, torch.Tensor]:
         """
-        Self-Forcing forward pass with stochastic gradient truncation.
+        Multi-step Self-Forcing (like guandeh17/Self-Forcing).
 
-        Key optimization: Only backpropagates through a single randomly selected
-        denoising step, reducing computational cost significantly.
+        Simulates full denoising trajectory during training:
+        1. Start from pure noise
+        2. Iteratively denoise through num_inference_steps
+        3. Backpropagate gradients only through a randomly selected step
+        4. Use denoised result for KV cache update
 
-        The gradient is only computed for the selected timestep s ∈ [1, T].
-        KV cache updates are detached from the gradient graph.
+        This bridges the train-test gap by training on the same denoising
+        trajectory used during inference.
 
-        IMPORTANT: This method matches the exact behavior of the original
-        forward_self_forcing to avoid train-eval mismatch:
-        - Noising uses t directly (same scale as original)
-        - Model input uses t * 1000 (matching original t_model = t_chunk * 1000)
-
-        Args:
-            x_clean: Clean latent video (B, C, T, H, W)
-            t: Timestep tensor (B,) - the single timestep for gradient computation
-            context: Text embeddings
-
-        Returns:
-            Tuple of (predicted velocities, target velocities)
+        If use_aligned=True, uses forward_self_forcing_multistep_aligned() which
+        simulates eval's cache pop + chunk_prefill behavior.
         """
-        B, C, T, H, W = x_clean.shape
-        block_size = self.wrapper.get_block_size(x_clean.shape)
-        num_chunks = (T + self.chunk_size - 1) // self.chunk_size
-
-        # Clean KV cache
-        self.wrapper.dit.clean_cache()
-
-        # Randomly select which chunk to backprop through
-        # This is the "stochastic" part of stochastic gradient truncation
-        grad_chunk_idx = torch.randint(0, num_chunks, (1,)).item()
-
-        all_v_pred = []
-        all_v_target = []
-
-        for chunk_idx in range(num_chunks):
-            start_t = chunk_idx * self.chunk_size
-            end_t = min(start_t + self.chunk_size, T)
-
-            # Get current chunk
-            x_chunk = x_clean[:, :, start_t:end_t, :, :]
-
-            # Sample noise
-            x0_chunk = torch.randn_like(x_chunk)
-
-            # Use the same timestep for all chunks (as per same_t_across_chunks)
-            # MATCH ORIGINAL: t is passed directly, matching forward_self_forcing behavior
-            t_chunk = t
-
-            # Expand timestep for broadcasting
-            t_expanded = t_chunk
-            while t_expanded.dim() < x_chunk.dim():
-                t_expanded = t_expanded.unsqueeze(-1)
-
-            # MATCH ORIGINAL (wrapper_causal.py:382):
-            # Create noised chunk using t directly (same as original code)
-            # x_noised = (1 - t_expanded) * x_chunk + t_expanded * x0_chunk
-            x_noised = (1 - t_expanded) * x_chunk + t_expanded * x0_chunk
-
-            # Target velocity (same as original)
-            v_target = x0_chunk - x_chunk
-
-            # Determine if this chunk should have gradients
-            requires_grad = (chunk_idx == grad_chunk_idx)
-
-            # Build attention mask
-            if chunk_idx == 0:
-                attention_mask = self.wrapper._build_causal_mask(
-                    x_noised.shape, block_size, self.device
-                )
-                prefill = True
-                chunk_prefill = False
-            else:
-                attention_mask = self.wrapper._build_chunk_causal_mask(
-                    x_noised.shape, block_size,
-                    kv_len=self.wrapper.dit.kvcache_len(),
-                    device=self.device
-                )
-                prefill = False
-                chunk_prefill = False
-
-            # MATCH ORIGINAL (wrapper_causal.py:419):
-            # Scale timestep for model input: t_model = t_chunk * 1000.0
-            t_model = t_chunk * 1000.0
-
-            if requires_grad:
-                # This chunk gets gradients - do full forward pass
-                # Step 1: Update KV cache with clean frames (detached if configured)
-                t_clean = torch.zeros_like(t_model)
-
-                if self.detach_kv_cache:
-                    # Detach KV cache update from gradient graph
-                    with torch.no_grad():
-                        self.wrapper.forward_causal(
-                            x=x_chunk,
-                            t=t_clean,
-                            context=context,
-                            attention_mask=attention_mask,
-                            use_cache=True,
-                            prefill=prefill,
-                            chunk_prefill=chunk_prefill,
-                            block_idx=None if prefill else chunk_idx,
-                        )
-                else:
-                    self.wrapper.forward_causal(
-                        x=x_chunk,
-                        t=t_clean,
-                        context=context,
-                        attention_mask=attention_mask,
-                        use_cache=True,
-                        prefill=prefill,
-                        chunk_prefill=chunk_prefill,
-                        block_idx=None if prefill else chunk_idx,
-                    )
-
-                # Step 2: Compute prediction with gradients
-                v_pred = self.wrapper.forward_causal(
-                    x=x_noised,
-                    t=t_model,
+        # Multi-step Self-Forcing forward pass
+        with time_block("Self-Forcing Forward", device=self.device):
+            if self.use_aligned:
+                # Use aligned function that matches eval's cache pop behavior
+                x0_pred, x0_target, exit_step = self.wrapper.forward_self_forcing_multistep_aligned(
+                    x_clean=x_clean,
                     context=context,
-                    attention_mask=attention_mask,
-                    use_cache=False,
-                    prefill=prefill,
-                    chunk_prefill=chunk_prefill,
-                    block_idx=None if prefill else chunk_idx,
+                    chunk_size=self.chunk_size,
+                    num_inference_steps=self.num_inference_steps,
+                    num_train_timesteps=self.num_train_timesteps,
+                    shift=self.aligned_shift,  # Use aligned shift (default 5.0)
+                    context_noise=self.context_noise,
+                    simulate_cache_pop=self.simulate_cache_pop,
+                    sink_frames=self.sink_frames,
+                    frames_per_round=self.frames_per_round,
+                    debug=self.aligned_debug,
                 )
             else:
-                # This chunk is detached - no gradients
-                with torch.no_grad():
-                    # Update KV cache with clean frames
-                    t_clean = torch.zeros_like(t_model)
-                    self.wrapper.forward_causal(
-                        x=x_chunk,
-                        t=t_clean,
-                        context=context,
-                        attention_mask=attention_mask,
-                        use_cache=True,
-                        prefill=prefill,
-                        chunk_prefill=chunk_prefill,
-                        block_idx=None if prefill else chunk_idx,
-                    )
+                # Original forward pass
+                x0_pred, x0_target, exit_step = self.wrapper.forward_self_forcing_multistep(
+                    x_clean=x_clean,
+                    context=context,
+                    chunk_size=self.chunk_size,
+                    num_inference_steps=self.num_inference_steps,
+                    num_train_timesteps=self.num_train_timesteps,
+                    shift=self.timestep_shift,
+                    context_noise=self.context_noise,
+                )
 
-                    # Compute prediction without gradients
-                    v_pred = self.wrapper.forward_causal(
-                        x=x_noised,
-                        t=t_model,
-                        context=context,
-                        attention_mask=attention_mask,
-                        use_cache=False,
-                        prefill=prefill,
-                        chunk_prefill=chunk_prefill,
-                        block_idx=None if prefill else chunk_idx,
-                    )
+        # Loss: MSE between predicted x0 and target x0
+        # (different from single-step which uses velocity loss)
+        with time_block("Loss Computation", device=self.device):
+            if self.use_embodiment_loss and "embodiment_mask" in batch:
+                embodiment_mask = batch["embodiment_mask"]
+                # Adapt embodiment loss for x0 prediction
+                weights = 1.0 + self.eta * embodiment_mask
+                diff = x0_pred - x0_target
+                weighted_diff = weights * diff
+                loss = (weighted_diff ** 2).mean()
+            else:
+                loss = torch.nn.functional.mse_loss(x0_pred, x0_target)
 
-            all_v_pred.append(v_pred)
-            all_v_target.append(v_target)
+        # Log exit step for debugging
+        if self.global_step % 100 == 0:
+            logger.debug(f"Multi-step SF: exit_step={exit_step}/{self.num_inference_steps}")
 
-        # Clean up cache
-        self.wrapper.dit.clean_cache()
-
-        # Concatenate all chunks
-        # Note: Only the grad_chunk_idx chunk will have gradients
-        v_pred_all = torch.cat(all_v_pred, dim=2)
-        v_target_all = torch.cat(all_v_target, dim=2)
-
-        return v_pred_all, v_target_all
+        return {"loss": loss, "exit_step": exit_step}
 
     def _embodiment_aware_loss(
         self,
@@ -664,56 +656,73 @@ class VidarCausalTrainer(BaseTrainer):
         """
         Standard training step (non-causal, for comparison/warmup).
 
-        Supports stochastic gradient truncation for faster training.
         Can be used for initial warmup before switching to Self-Forcing.
         """
         video = batch["video"]
         instructions = batch["instruction"]
         B = video.shape[0]
 
+        # DATALOADER FORMAT DEBUG: Log input format
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_standard]: "
+        #                f"Input batch['video'].shape={video.shape} (B, T, C, H, W), "
+        #                f"dtype={video.dtype}, "
+        #                f"value_range=[{video.min().item():.3f}, {video.max().item():.3f}], "
+        #                f"len(instructions)={len(instructions)}")
+
         # Convert video format
         video = video.permute(0, 2, 1, 3, 4)
-
+        
         # Clamp to ensure strict [0, 1] range before normalization (matching inference)
         video = torch.clamp(video, 0.0, 1.0)
-
+        
         # Normalize from [0, 1] to [-1, 1] (same formula as inference)
         video = video * 2 - 1
+
+        # DATALOADER FORMAT DEBUG: Log after conversion and normalization
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_standard]: "
+        #                f"After permute+normalize: video.shape={video.shape} (B, C, T, H, W), "
+        #                f"dtype={video.dtype}, "
+        #                f"value_range=[{video.min().item():.3f}, {video.max().item():.3f}] (expected: [-1, 1])")
 
         # Encode
         with torch.no_grad():
             x1 = self._encode_video(video)
             context = self._encode_text(instructions)
+        
+        # DATALOADER FORMAT DEBUG: Log after encoding
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"DATALOADER DEBUG [train_step_standard]: "
+        #                f"After VAE encode: x1.shape={x1.shape} (B, C_latent, T', H', W'), "
+        #                f"dtype={x1.dtype}, "
+        #                f"value_range=[{x1.min().item():.3f}, {x1.max().item():.3f}]")
 
-        # Sample timesteps using appropriate strategy
-        if self.stochastic_truncation:
-            t = sample_timestep_for_truncation(
-                B, self.device,
-                strategy=self.truncation_strategy,
-                num_train_timesteps=self.num_train_timesteps,
-                importance_low_t=self.importance_low_t,
-                importance_high_t=self.importance_high_t,
-                importance_weight=self.importance_weight,
-                num_strata=self.num_inference_steps,
-            )
-        else:
-            num_train_timesteps = getattr(self.wrapper.dit.config, 'num_train_timesteps', 1000)
-            t = sample_timestep(B, self.device, num_train_timesteps=num_train_timesteps)
-
+        # Sample timesteps and noise (scaled to [0, num_train_timesteps] to match inference)
+        num_train_timesteps = getattr(self.wrapper.dit.config, 'num_train_timesteps', 1000)
+        t = sample_timestep(B, self.device, num_train_timesteps=num_train_timesteps)
+        
+        # Log timestep range for debugging (only log occasionally to avoid spam)
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"TIMESTEP DEBUG [step={self.global_step}]: "
+        #                f"t range=[{t.min().item():.2f}, {t.max().item():.2f}], "
+        #                f"mean={t.mean().item():.2f}, "
+        #                f"num_train_timesteps={num_train_timesteps}")
+        
         x0 = torch.randn_like(x1)
 
-        # Add noise - MATCH ORIGINAL: use t directly (same as original code)
+        # Add noise
         t_expanded = t
         while t_expanded.dim() < x1.dim():
             t_expanded = t_expanded.unsqueeze(-1)
-
-        # x_t = (1-t) * x1 + t * x0 (same as original)
+        #!!! 
+        # x_t = t_expanded * x1 + (1 - t_expanded) * x0
         x_t = (1 - t_expanded) * x1 + t_expanded * x0
-
-        # Target velocity
+        #!!! Target velocity
         v_target = x0 - x1
+        # v_target = x1 - x0
 
-        # Forward through DiT - uses prefill mode which handles timestep correctly
+        # Forward through DiT
         v_pred = self.wrapper(x_t, t, context)
 
         # Loss

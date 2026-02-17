@@ -170,17 +170,22 @@ class VidarTrainer(BaseTrainer):
         with torch.no_grad():
             context = self._encode_text(instructions)  # (B, L, D)
 
-        # Sample timesteps (t in [0, 1] for interpolation)
-        t = sample_timestep(B, self.device)
+        # Sample timesteps (scaled to [0, num_train_timesteps] to match inference)
+        num_train_timesteps = getattr(self.wrapper.dit.config, 'num_train_timesteps', 1000)
+        t = sample_timestep(B, self.device, num_train_timesteps=num_train_timesteps)
+        
+        # Log timestep range for debugging (only log occasionally to avoid spam)
+        # if self.global_step % self.config.output.log_interval == 0:
+        #     logger.info(f"TIMESTEP DEBUG [step={self.global_step}]: "
+        #                f"t range=[{t.min().item():.2f}, {t.max().item():.2f}], "
+        #                f"mean={t.mean().item():.2f}, "
+        #                f"num_train_timesteps={num_train_timesteps}")
 
         # Add noise: x_t = t * x_1 + (1 - t) * x_0
         x_t, x0 = add_noise(x1, t)
 
-        # Scale timestep for model input: model expects t in [0, 1000]
-        t_model = t * 1000.0
-
         # Forward through DiT
-        v_pred = self._forward_dit(x_t, t_model, context)
+        v_pred = self._forward_dit(x_t, t, context)
 
         # Compute loss: ||v_θ - (x_0 - x_1)||²
         loss = self.loss_fn(v_pred, x0, x1)

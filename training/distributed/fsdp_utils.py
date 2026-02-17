@@ -193,6 +193,9 @@ def apply_activation_checkpointing(
 ):
     """
     Apply activation checkpointing to transformer layers.
+    
+    Uses NO_REENTRANT checkpointing to avoid KV cache shape mismatch issues
+    when chunk_size > 1 in self-forcing training.
 
     Args:
         model: Model to apply checkpointing to
@@ -210,9 +213,19 @@ def apply_activation_checkpointing(
     def check_fn(module):
         return isinstance(module, tuple(check_fn_or_cls))
 
+    # Use non-reentrant checkpointing to avoid KV cache issues with chunk_size > 1
+    # NO_REENTRANT prevents the recompute phase from clearing KV cache state,
+    # which causes shape mismatches when KV cache accumulates across chunks
+    def checkpoint_wrapper_fn(module, **kwargs):
+        return checkpoint_wrapper(
+            module,
+            checkpoint_impl=CheckpointImpl.NO_REENTRANT,
+            **kwargs
+        )
+
     _apply_ac(
         model,
-        checkpoint_wrapper_fn=checkpoint_wrapper,
+        checkpoint_wrapper_fn=checkpoint_wrapper_fn,
         check_fn=check_fn,
     )
 

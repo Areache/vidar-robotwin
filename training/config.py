@@ -69,35 +69,6 @@ class DataConfig:
 
 
 @dataclass
-class DiffusionConfig:
-    """Few-Step Diffusion and Stochastic Gradient Truncation configuration.
-
-    Implements optimizations from the Vidarc paper:
-    - Few-step diffusion: Use fewer denoising steps (e.g., 10 instead of 1000)
-    - Stochastic gradient truncation: Only backprop through one random timestep per batch
-    """
-    # Few-step diffusion settings
-    num_inference_steps: int = 10  # Number of denoising steps during inference
-    num_train_timesteps: int = 1000  # Scale for timestep embeddings (keep at 1000 for compatibility)
-
-    # Stochastic gradient truncation
-    stochastic_truncation: bool = True  # Enable stochastic gradient truncation
-    truncation_strategy: Literal["uniform", "importance", "stratified"] = "uniform"
-    # - "uniform": Sample timestep uniformly from [0, 1]
-    # - "importance": Sample more from critical timesteps (t=0.3-0.7)
-    # - "stratified": Divide [0,1] into bins and sample from each
-
-    # Importance sampling weights (for strategy="importance")
-    importance_low_t: float = 0.3  # Lower bound for high importance region
-    importance_high_t: float = 0.7  # Upper bound for high importance region
-    importance_weight: float = 3.0  # Weight multiplier for important region
-
-    # Gradient truncation options
-    detach_kv_cache: bool = True  # Detach KV cache from gradient graph
-    gradient_checkpointing_compatible: bool = True  # Ensure compatibility with activation checkpointing
-
-
-@dataclass
 class LossConfig:
     """Loss configuration."""
     type: Literal["flow_matching", "causal_flow_matching"] = "flow_matching"
@@ -116,6 +87,26 @@ class SelfForcingConfig:
     chunk_size: int = 16
     kv_cache_length: int = 64
     same_step_across_blocks: bool = True
+
+    # Self-Forcing training mode:
+    # - "single_step": Original approach, sample one timestep, add noise, predict velocity
+    # - "multi_step": Full denoising trajectory simulation (like guandeh17/Self-Forcing)
+    mode: str = "single_step"
+
+    # Multi-step training parameters (only used when mode="multi_step")
+    num_inference_steps: int = 10  # Number of denoising steps in trajectory
+    num_train_timesteps: int = 1000  # Total timesteps for schedule
+    timestep_shift: float = 8.0  # Shift for flow matching schedule
+    context_noise: float = 0.0  # Optional noise level for context frames in KV cache
+
+    # Train-Eval Alignment (use forward_self_forcing_aligned functions)
+    # These settings match eval's cache pop + chunk_prefill behavior
+    use_aligned: bool = False  # Use aligned functions instead of original
+    simulate_cache_pop: bool = True  # Simulate eval's cache pop (keep sink only)
+    sink_frames: int = 1  # Number of frames to keep after cache pop
+    frames_per_round: int = 4  # Frames per round before cache pop
+    shift: float = 5.0  # Timestep shift for aligned training (match eval)
+    debug: bool = False  # Enable [TRAIN_ALIGNED] debug prints
 
 
 @dataclass
@@ -197,7 +188,6 @@ class VidarConfig:
     training: TrainingConfig = field(default_factory=TrainingConfig)
     data: DataConfig = field(default_factory=DataConfig)
     loss: LossConfig = field(default_factory=LossConfig)
-    diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)  # Few-step + stochastic truncation
     self_forcing: SelfForcingConfig = field(default_factory=SelfForcingConfig)
     lora: LoRAConfig = field(default_factory=LoRAConfig)
     distributed: DistributedConfig = field(default_factory=DistributedConfig)
@@ -223,7 +213,6 @@ class VidarConfig:
             training=TrainingConfig(**data.get("training", {})),
             data=DataConfig(**data.get("data", {})),
             loss=LossConfig(**data.get("loss", {})),
-            diffusion=DiffusionConfig(**data.get("diffusion", {})),
             self_forcing=SelfForcingConfig(**data.get("self_forcing", {})),
             lora=LoRAConfig(**data.get("lora", {})),
             distributed=DistributedConfig(**data.get("distributed", {})),

@@ -50,12 +50,13 @@ class VideoTransform:
         C, T, H, W = video.shape
 
         # Resize if needed
+        #!!!change to bicubic 
         if (H, W) != self.resolution:
             video = video.reshape(C * T, 1, H, W)
             video = F.interpolate(
                 video,
                 size=self.resolution,
-                mode='bilinear',
+                mode='bicubic',
                 align_corners=False
             )
             video = video.reshape(C, T, *self.resolution)
@@ -237,7 +238,7 @@ def get_train_transform(
     """Get default training transform."""
     return VideoTransform(
         resolution=resolution,
-        normalize=True,
+        normalize=False,
         random_flip=random_flip,
         flip_prob=0.5
     )

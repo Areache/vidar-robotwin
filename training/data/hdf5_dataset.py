@@ -434,6 +434,8 @@ def get_hdf5_dataloader(
     distributed: bool = False,
     drop_last: bool = True,
     cfg_prob: float = 0.1,
+    prefetch_factor: Optional[int] = None,
+    persistent_workers: bool = False,
 ) -> DataLoader:
     """
     Create HDF5-based dataloader.
@@ -488,16 +490,25 @@ def get_hdf5_dataloader(
             f"Disabling drop_last to allow training with incomplete batches."
         )
 
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        sampler=sampler,
-        drop_last=actual_drop_last,
-        collate_fn=hdf5_collate_fn,
-    )
+    # Build dataloader kwargs
+    loader_kwargs = {
+        "batch_size": batch_size,
+        "shuffle": shuffle,
+        "num_workers": num_workers,
+        "pin_memory": pin_memory,
+        "sampler": sampler,
+        "drop_last": actual_drop_last,
+        "collate_fn": hdf5_collate_fn,
+    }
+
+    # Add prefetch_factor and persistent_workers if num_workers > 0
+    if num_workers > 0:
+        if prefetch_factor is not None:
+            loader_kwargs["prefetch_factor"] = prefetch_factor
+        if persistent_workers:
+            loader_kwargs["persistent_workers"] = persistent_workers
+
+    return DataLoader(dataset, **loader_kwargs)
 
 
 def hdf5_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
