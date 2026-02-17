@@ -44,6 +44,10 @@ class TrainingConfig:
     eta: float = 3.0
     use_embodiment_loss: bool = False
 
+    # Performance optimizations
+    t5_cache_enabled: bool = True  # Cache T5 embeddings (major speedup for repeated prompts)
+    compile_t5: bool = False  # Compile T5 encoder with torch.compile
+
     # Debug
     debug: bool = False
     max_steps: Optional[int] = None  # Override num_steps for debug
@@ -88,6 +92,26 @@ class SelfForcingConfig:
     kv_cache_length: int = 64
     same_step_across_blocks: bool = True
 
+    # Self-Forcing training mode:
+    # - "single_step": Original approach, sample one timestep, add noise, predict velocity
+    # - "multi_step": Full denoising trajectory simulation (like guandeh17/Self-Forcing)
+    mode: str = "single_step"
+
+    # Multi-step training parameters (only used when mode="multi_step")
+    num_inference_steps: int = 10  # Number of denoising steps in trajectory
+    num_train_timesteps: int = 1000  # Total timesteps for schedule
+    timestep_shift: float = 8.0  # Shift for flow matching schedule
+    context_noise: float = 0.0  # Optional noise level for context frames in KV cache
+
+    # Train-Eval Alignment (use forward_self_forcing_aligned functions)
+    # These settings match eval's cache pop + chunk_prefill behavior
+    use_aligned: bool = False  # Use aligned functions instead of original
+    simulate_cache_pop: bool = True  # Simulate eval's cache pop (keep sink only)
+    sink_frames: int = 1  # Number of frames to keep after cache pop
+    frames_per_round: int = 4  # Frames per round before cache pop
+    shift: float = 5.0  # Timestep shift for aligned training (match eval)
+    debug: bool = False  # Enable [TRAIN_ALIGNED] debug prints
+
 
 @dataclass
 class LoRAConfig:
@@ -110,6 +134,10 @@ class DistributedConfig:
     mixed_precision: Literal["bf16", "fp16", "fp32"] = "bf16"
     activation_checkpointing: bool = True
     cpu_offload: bool = False
+    
+    # FSDP optimizations
+    sync_module_states: bool = False  # Sync module states across ranks (helps with load balancing)
+    forward_prefetch: bool = False  # Prefetch next layer during forward pass
 
 
 @dataclass

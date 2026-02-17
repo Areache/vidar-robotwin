@@ -1,0 +1,86 @@
+# Stage 2: Vidarc causal training with Multi-Step Self-Forcing
+#
+# This config implements the Self-Forcing approach from guandeh17/Self-Forcing:
+# - Simulates full denoising trajectory during training
+# - Stochastic gradient truncation: only backprop through 1 random step
+# - KV cache updated with denoised results (not ground truth)
+#
+# Key difference from single_step mode:
+# - single_step: Sample 1 timestep, add noise, predict velocity
+# - multi_step: Start from noise, denoise through N steps, backprop at random step
+
+model:
+  ckpt_dir: checkpoints/Wan2.2-TI2V-5B
+  pt_dir: checkpoints/vidar/vidar.pt
+  model_class: WanModelCausal
+  gradient_checkpointing: false  # Incompatible with Self-Forcing KV cache
+
+training:
+  num_steps: 4000
+  batch_size: 1
+  gradient_accumulation: 8
+  lr: 2.0e-5
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  warmup_steps: 200
+  scheduler: cosine
+  freeze:
+    - t5
+    - vae
+
+data:
+  data_dir: data/robotwin
+  num_frames: 16
+  resolution: [736, 640]
+  fps: 10
+  num_workers: 4
+  pin_memory: true
+  cfg_prob: 0.1
+  prefetch_factor: 2
+  persistent_workers: true
+
+loss:
+  type: causal_flow_matching
+  embodiment_aware: true
+  eta: 3.0
+
+# Multi-Step Self-Forcing Configuration
+self_forcing:
+  enabled: true
+  causal: true
+  chunk_size: 4
+  kv_cache_length: 64
+  same_step_across_blocks: true
+
+  # Key: Use multi_step mode to simulate denoising trajectory
+  mode: multi_step
+
+  # Denoising trajectory parameters
+  num_inference_steps: 10      # Same as inference (10 steps)
+  num_train_timesteps: 1000    # Total timesteps for schedule
+  timestep_shift: 8.0          # Shift for flow matching schedule (matches inference)
+  context_noise: 0.0           # No noise for context frames (use 0.02 for slight regularization)
+
+distributed:
+  use_fsdp: true
+  sharding_strategy: SHARD_GRAD_OP
+  mixed_precision: bf16
+  activation_checkpointing: false  # Disabled for Self-Forcing compatibility
+  cpu_offload: false
+
+logging:
+  output_dir: outputs/vidarc_multistep_sf
+  log_interval: 1
+  save_interval: 100
+  eval_interval: 500
+  use_wandb: true
+  wandb_project: vidarc-multistep-sf
+
+output:
+  save_path: checkpoints/vidar/vidarc_multistep_sf.pt
+  save_optimizer: true
+  save_scheduler: true
+
+seed: 42

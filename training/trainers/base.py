@@ -25,6 +25,7 @@ from ..distributed.fsdp_utils import (
     wrap_model_fsdp,
     all_reduce_mean,
 )
+from ..utils.timing import time_block, print_stats, reset_stats, print_step_timings, TIME_DEBUG_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -317,6 +318,8 @@ class BaseTrainer(ABC):
             transformer_layer_cls=transformer_layer_cls,
             cpu_offload=cfg.cpu_offload,
             activation_checkpointing=cfg.activation_checkpointing,
+            sync_module_states=getattr(cfg, "sync_module_states", False),
+            forward_prefetch=getattr(cfg, "forward_prefetch", False),
         )
 
     def _get_transformer_layer_cls(self):
@@ -368,31 +371,39 @@ class BaseTrainer(ABC):
         data_iter = iter(self.dataloader)
 
         while self.global_step < total_steps:
-            # Get batch
-            try:
-                batch = next(data_iter)
-            except StopIteration:
-                self.epoch += 1
-                data_iter = iter(self.dataloader)
-                try:
-                    batch = next(data_iter)
-                except StopIteration:
-                    raise RuntimeError(
-                        f"DataLoader returned empty iterator after reset. "
-                        f"Dataset has {dataset_size} samples but batch_size={batch_size} "
-                        f"with {self.world_size} GPUs (drop_last=True). "
-                        f"Try reducing batch_size or adding more data."
-                    )
+            # Timing: Total step
+            with time_block("Total Step", device=self.device):
+                # Get batch
+                with time_block("Data Loading", device=None):
+                    try:
+                        batch = next(data_iter)
+                    except StopIteration:
+                        self.epoch += 1
+                        data_iter = iter(self.dataloader)
+                        try:
+                            batch = next(data_iter)
+                        except StopIteration:
+                            raise RuntimeError(
+                                f"DataLoader returned empty iterator after reset. "
+                                f"Dataset has {dataset_size} samples but batch_size={batch_size} "
+                                f"with {self.world_size} GPUs (drop_last=True). "
+                                f"Try reducing batch_size or adding more data."
+                            )
 
-            # Move to device
-            batch = self._to_device(batch)
+                # Move to device
+                batch = self._to_device(batch)
 
-            # Training step
-            metrics = self._train_step_with_accumulation(batch)
+                # Training step
+                metrics = self._train_step_with_accumulation(batch)
 
             # Logging
             if self.global_step % self.config.logging.log_interval == 0:
                 self._log_metrics(metrics)
+                # Print timing stats at every log interval (for more frequent output)
+                if TIME_DEBUG_ENABLED:
+                    # Use available steps for window size (min of available steps or 10)
+                    window_size = min(self.global_step + 1, 10)
+                    print_stats(self.global_step, window_size=window_size)
 
             # Checkpointing (skip step 0)
             if self.global_step > 0 and self.global_step % self.config.logging.save_interval == 0:
@@ -426,24 +437,69 @@ class BaseTrainer(ABC):
         total_loss = 0.0
         metrics = {}
 
-        for i in range(accum_steps):
-            # Forward + backward
-            with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
-                step_metrics = self.train_step(batch)
+        # Timing: Gradient accumulation loop
+        with time_block("Gradient Accumulation Loop", device=self.device):
+            for i in range(accum_steps):
+                # Timing: Autocast context
+                with time_block("Autocast Context", device=self.device):
+                    with torch.cuda.amp.autocast(enabled=self.config.distributed.mixed_precision != "fp32"):
+                        step_metrics = self.train_step(batch)
 
-            loss = step_metrics["loss"] / accum_steps
-            loss.backward()
+                loss = step_metrics["loss"] / accum_steps
+                
+                # Timing: Backward pass
+                with time_block("Backward", device=self.device):
+                    loss.backward()
 
-            total_loss += step_metrics["loss"].item() / accum_steps
+                # Timing: Gradient check
+                if self.global_step % 10 == 0 or torch.isnan(loss) or torch.isinf(loss):
+                    with time_block("Gradient Check", device=self.device):
+                        total_norm = 0.0
+                        param_count = 0
+                        nan_grad_count = 0
+                        inf_grad_count = 0
+                        nan_grad_names = []
+                        inf_grad_names = []
+                        
+                        for name, param in self.model.named_parameters():
+                            if param.grad is not None:
+                                param_norm = param.grad.data.norm(2)
+                                total_norm += param_norm.item() ** 2
+                                param_count += 1
+                                
+                                if torch.isnan(param.grad).any():
+                                    nan_grad_count += 1
+                                    nan_grad_names.append(name)
+                                if torch.isinf(param.grad).any():
+                                    inf_grad_count += 1
+                                    inf_grad_names.append(name)
+                        
+                        total_norm = total_norm ** (1. / 2) if total_norm > 0 else 0.0
+                        
+                        if nan_grad_count > 0 or inf_grad_count > 0 or torch.isnan(loss) or torch.isinf(loss):
+                            logger.error(f"[DEBUG NaN] Gradient check at step {self.global_step}: "
+                                        f"total_norm={total_norm:.6f}, "
+                                        f"nan_grad_count={nan_grad_count}, inf_grad_count={inf_grad_count}, "
+                                        f"loss={loss.item() if isinstance(loss, torch.Tensor) else loss}")
+                            if nan_grad_count > 0:
+                                logger.error(f"[DEBUG NaN] NaN gradients in: {nan_grad_names[:10]}")  # Show first 10
+                            if inf_grad_count > 0:
+                                logger.error(f"[DEBUG NaN] Inf gradients in: {inf_grad_names[:10]}")  # Show first 10
 
-        # Optimizer step
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-        self.scheduler.step()
+                total_loss += step_metrics["loss"].item() / accum_steps
 
-        # Sync metrics across ranks
-        if self.world_size > 1:
-            total_loss = all_reduce_mean(torch.tensor(total_loss, device=self.device)).item()
+        # Timing: Optimizer step
+        with time_block("Optimizer Step", device=self.device):
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            self.scheduler.step()
+
+        # Timing: Sync
+        with time_block("Sync", device=self.device):
+            # Sync metrics across ranks
+            if self.world_size > 1:
+                total_loss = all_reduce_mean(torch.tensor(total_loss, device=self.device)).item()
+                torch.cuda.synchronize(self.device)
 
         metrics["loss"] = total_loss
         metrics["lr"] = self.scheduler.get_last_lr()[0]
@@ -453,12 +509,13 @@ class BaseTrainer(ABC):
 
     def _to_device(self, batch: Dict[str, Any]) -> Dict[str, Any]:
         """Move batch to device."""
-        result = {}
-        for k, v in batch.items():
-            if isinstance(v, torch.Tensor):
-                result[k] = v.to(self.device)
-            else:
-                result[k] = v
+        with time_block("Data Transfer", device=self.device):
+            result = {}
+            for k, v in batch.items():
+                if isinstance(v, torch.Tensor):
+                    result[k] = v.to(self.device)
+                else:
+                    result[k] = v
         return result
 
     def _log_metrics(self, metrics: Dict[str, float]):

@@ -18,6 +18,8 @@ from typing import Optional, List, Dict, Any, Tuple
 import torch
 import torch.nn as nn
 
+from ..utils.timing import time_block
+
 # Import from wan modules (same as causal_worker.py)
 # Requires PYTHONPATH to include vidar directory
 from wan.modules.model_causal import WanModelCausal, WanAttentionBlock
@@ -54,6 +56,7 @@ class WanModelCausalTrainingWrapper(nn.Module):
         freeze_vae: bool = True,
         gradient_checkpointing: bool = True,
         device: Optional[torch.device] = None,
+        debug: bool = False,
     ):
         """
         Args:
@@ -72,6 +75,7 @@ class WanModelCausalTrainingWrapper(nn.Module):
         self.freeze_vae = freeze_vae
         self.gradient_checkpointing = gradient_checkpointing
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.debug = debug
 
         # Load config
         self.config = self._load_config()
@@ -143,6 +147,13 @@ class WanModelCausalTrainingWrapper(nn.Module):
 
         # Load causal model
         self.dit = WanModelCausal.from_pretrained(self.ckpt_dir)
+        
+        # Set debug flag for all components
+        self.dit.debug = self.debug
+        # Propagate debug to all blocks
+        for block in self.dit.blocks:
+            block.debug = self.debug
+            block.self_attn.debug = self.debug
 
         # Load Stage 1 fine-tuned weights if provided
         if self.pt_dir is not None:
@@ -152,6 +163,11 @@ class WanModelCausalTrainingWrapper(nn.Module):
             if "model" in state_dict:
                 state_dict = state_dict["model"]
             self.dit.load_state_dict(state_dict, strict=False)
+            # Re-set debug after loading state dict (in case it was overwritten)
+            self.dit.debug = self.debug
+            for block in self.dit.blocks:
+                block.debug = self.debug
+                block.self_attn.debug = self.debug
 
         # Enable gradient checkpointing
         if self.gradient_checkpointing:
@@ -329,16 +345,19 @@ class WanModelCausalTrainingWrapper(nn.Module):
         same_t_across_chunks: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Self-Forcing forward pass for training.
+        Self-Forcing forward pass for training (single-step mode).
 
-        Simulates autoregressive inference during training:
+        This is the original teacher-forcing approach:
         1. Split video into chunks
         2. For each chunk, use previous clean frames as context (teacher forcing)
-        3. Predict velocity for current noised chunk
+        3. Predict velocity for current noised chunk at a single timestep
+
+        For multi-step denoising trajectory training (like guandeh17/Self-Forcing),
+        use forward_self_forcing_multistep() instead.
 
         Args:
             x_clean: Clean latent video (B, C, T, H, W)
-            t: Timestep tensor (B,)
+            t: Timestep tensor (B,) - scaled to [0, num_train_timesteps]
             context: Text embeddings (B, L, D)
             chunk_size: Number of frames per chunk
             same_t_across_chunks: Use same timestep for all chunks
@@ -351,7 +370,8 @@ class WanModelCausalTrainingWrapper(nn.Module):
         num_chunks = (T + chunk_size - 1) // chunk_size
 
         # Clean KV cache
-        self.dit.clean_cache()
+        with time_block("Cache Clean", device=self.device):
+            self.dit.clean_cache()
 
         all_v_pred = []
         all_v_target = []
@@ -377,94 +397,92 @@ class WanModelCausalTrainingWrapper(nn.Module):
             while t_expanded.dim() < x_chunk.dim():
                 t_expanded = t_expanded.unsqueeze(-1)
 
-            #!!! Create noised chunk: x_t = t * x_1 + (1-t) * x_0
-            # x_noised = t_expanded * x_chunk + (1 - t_expanded) * x0_chunk
-            x_noised = (1 - t_expanded) * x_chunk + t_expanded * x0_chunk  
-            #!!! Target velocity
-            # v_target = x_chunk - x0_chunk
+            # Create noised chunk: x_t = (1-t) * x_clean + t * noise
+            x_noised = (1 - t_expanded) * x_chunk + t_expanded * x0_chunk
+            # Target velocity: v = noise - clean
             v_target = x0_chunk - x_chunk
 
             # Build causal attention mask
             if chunk_idx == 0:
-                # First chunk: standard causal mask within chunk
                 attention_mask = self._build_causal_mask(
                     x_noised.shape, block_size, self.device
                 )
                 prefill = True
                 chunk_prefill = False
-                # Add debug print for prefill chunk
-                # logger.info(f"BLOCK_IDX DEBUG [train forward_self_forcing:382]: "
-                #            f"Chunk {chunk_idx}, prefill=True, block_idx=None, "
-                #            f"chunk frames [{start_t}:{end_t}), T={T}, block_size={block_size}, "
-                #            f"chunk_size={chunk_size}")
             else:
-                # Subsequent chunks: use same path as inference (chunk_prefill=False + cache=True + block_idx)
-                # This ensures training uses rope_apply_one (same as inference) instead of rope_apply_chunk
                 attention_mask = self._build_chunk_causal_mask(
                     x_noised.shape, block_size,
                     kv_len=self.dit.kvcache_len(),
                     device=self.device
                 )
                 prefill = False
-                chunk_prefill = False  # Changed from True to False: use rope_apply_one instead of rope_apply_chunk
-                # Add debug print for subsequent chunks
-                # logger.info(f"BLOCK_IDX DEBUG [train forward_self_forcing:390]: "
-                #            f"Chunk {chunk_idx}, prefill=False, chunk_prefill=False (using inference path), "
-                #            f"block_idx={chunk_idx}, chunk frames [{start_t}:{end_t}), "
-                #            f"T={T}, block_size={block_size}, chunk_size={chunk_size}, "
-                #            f"Expected RoPE positions: [{chunk_idx * block_size}:{(chunk_idx + 1) * block_size})")
+                chunk_prefill = False
 
-            # Forward pass
             # Scale timestep for model input: model expects t in [0, 1000]
             t_model = t_chunk * 1000.0
-            
-            # Debug: Print KV cache state before forward
-            # kv_len_before = self.dit.kvcache_len()
-            # logger.info(f"KV_CACHE DEBUG [train forward_self_forcing:417]: Before forward - Chunk {chunk_idx}, "
-            #            f"kv_cache_len={kv_len_before}, x_noised.shape={x_noised.shape}, "
-            #            f"x_clean.shape={x_chunk.shape}, t_model={t_model.item() if isinstance(t_model, torch.Tensor) else t_model:.2f}, "
-            #            f"prefill={prefill}, chunk_prefill={chunk_prefill}, block_idx={None if prefill else chunk_idx}")
-            
-            # Step 1: Update KV cache with clean frames (matching inference behavior)
-            # This ensures training KV cache contains clean frames, same as inference
-            # For prefill, initialize KV cache with clean frames
-            # For subsequent chunks, update KV cache with clean frames
-            # kv_len_before_cache_update = self.dit.kvcache_len()
-            # logger.info(f"KV_CACHE DEBUG [train forward_self_forcing:cache_update]: Before KV cache update with clean frames - "
-            #            f"Chunk {chunk_idx}, kv_cache_len={kv_len_before_cache_update}, "
-            #            f"x_clean.shape={x_chunk.shape}, t=0.00 (clean frame), block_idx={None if prefill else chunk_idx}")
-            
-            # Update KV cache using clean frames and t=0 (matching inference: t=0 for clean frame KV cache update)
-            t_clean = torch.zeros_like(t_model) if isinstance(t_model, torch.Tensor) else 0.0
-            self.forward_causal(
-                x=x_chunk,  # Use clean frames, not noised frames
-                t=t_clean,  # Use t=0 for clean frame KV cache update
-                context=context,
-                attention_mask=attention_mask,
-                use_cache=True,  # Update KV cache with clean frames
-                prefill=prefill,
-                chunk_prefill=chunk_prefill,
-                block_idx=None if prefill else chunk_idx,
-            )
-            
-            # Step 2: Compute prediction using noised frames (without updating KV cache)
-            # Now that KV cache contains clean frames, compute prediction with noised frames
-            v_pred = self.forward_causal(
-                x=x_noised,
-                t=t_model,
-                context=context,
-                attention_mask=attention_mask,
-                use_cache=False,  # Don't update KV cache (it already contains clean frames)
-                prefill=prefill,
-                chunk_prefill=chunk_prefill,
-                block_idx=None if prefill else chunk_idx,
-            )
-            
-            # Debug: Print KV cache state after update
-            # kv_len_after = self.dit.kvcache_len()
-            # logger.info(f"KV_CACHE DEBUG [train forward_self_forcing:433]: After KV cache update - Chunk {chunk_idx}, "
-            #            f"kv_cache_len={kv_len_after} (added {kv_len_after - kv_len_before_cache_update} tokens), "
-            #            f"NOTE: KV cache contains CLEAN frames (t=0), not noised frames!")
+
+            if chunk_idx == 0:
+                # Step 1: Initialize cache with clean frames
+                attention_mask_prefill = self._build_causal_mask(
+                    x_chunk.shape, block_size, self.device
+                )
+                with time_block(f"Chunk {chunk_idx} (prefill)", device=self.device, indent=1):
+                    t_clean = torch.zeros_like(t_model) if isinstance(t_model, torch.Tensor) else 0.0
+                    self.forward_causal(
+                        x=x_chunk,
+                        t=t_clean,
+                        context=context,
+                        attention_mask=attention_mask_prefill,  # Mask for 1 frame
+                        use_cache=False,  # Not needed, prefill handles it
+                        prefill=True,     # Initializes cache
+                        chunk_prefill=False,
+                        block_idx=None,   # Must be None for first chunk
+                    )
+
+                    # Step 2: Predict with noised frames using the cache
+                    # Need NEW attention mask that accounts for cached frame
+                    attention_mask_with_cache = self._build_chunk_causal_mask(
+                        x_noised.shape,
+                        block_size,
+                        kv_len=self.dit.kvcache_len(),  # Now has 460 tokens
+                        device=self.device
+                    )
+                    v_pred = self.forward_causal(
+                        x=x_noised,
+                        t=t_model,
+                        context=context,
+                        attention_mask=attention_mask_with_cache,  # ← NEW mask
+                        use_cache=False,  # Use cache without updating
+                        prefill=False,    # ← KEY FIX: Don't reinitialize!
+                        chunk_prefill=False,
+                        block_idx=1,      # ← Fix: Use block_idx=1 (cache has frame 0, current is frame 1)
+                    )
+            else:
+                # Step 1: Update KV cache with clean frames (t=0)
+                with time_block(f"Chunk {chunk_idx} (cache)", device=self.device, indent=1):
+                    t_clean = torch.zeros_like(t_model) if isinstance(t_model, torch.Tensor) else 0.0
+                    self.forward_causal(
+                        x=x_chunk,
+                        t=t_clean,
+                        context=context,
+                        attention_mask=attention_mask,
+                        use_cache=True,
+                        prefill=prefill,
+                        chunk_prefill=chunk_prefill,
+                        block_idx=None if prefill else chunk_idx,
+                    )
+
+                    # Step 2: Compute prediction using noised frames
+                    v_pred = self.forward_causal(
+                        x=x_noised,
+                        t=t_model,
+                        context=context,
+                        attention_mask=attention_mask,
+                        use_cache=False,
+                        prefill=prefill,
+                        chunk_prefill=chunk_prefill,
+                        block_idx=None if prefill else chunk_idx,
+                    )
 
             all_v_pred.append(v_pred)
             all_v_target.append(v_target)
@@ -476,7 +494,294 @@ class WanModelCausalTrainingWrapper(nn.Module):
         v_pred_all = torch.cat(all_v_pred, dim=2)
         v_target_all = torch.cat(all_v_target, dim=2)
 
+        # DEBUG: Check outputs before returning
+        if torch.isnan(v_pred_all).any() or torch.isinf(v_pred_all).any():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[DEBUG NaN] forward_self_forcing: v_pred_all contains NaN/Inf: "
+                        f"nan_count={torch.isnan(v_pred_all).sum().item()}, "
+                        f"inf_count={torch.isinf(v_pred_all).sum().item()}, "
+                        f"shape={v_pred_all.shape}, "
+                        f"min={v_pred_all.min().item():.6f}, max={v_pred_all.max().item():.6f}, "
+                        f"mean={v_pred_all.mean().item():.6f}")
+        
+        if torch.isnan(v_target_all).any() or torch.isinf(v_target_all).any():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[DEBUG NaN] forward_self_forcing: v_target_all contains NaN/Inf: "
+                        f"nan_count={torch.isnan(v_target_all).sum().item()}, "
+                        f"inf_count={torch.isinf(v_target_all).sum().item()}, "
+                        f"shape={v_target_all.shape}, "
+                        f"min={v_target_all.min().item():.6f}, max={v_target_all.max().item():.6f}, "
+                        f"mean={v_target_all.mean().item():.6f}")
+
         return v_pred_all, v_target_all
+
+    def forward_self_forcing_multistep(
+        self,
+        x_clean: torch.Tensor,
+        context,  # Can be torch.Tensor or List[torch.Tensor]
+        chunk_size: int = 16,
+        num_inference_steps: int = 10,
+        num_train_timesteps: int = 1000,
+        shift: float = 8.0,
+        context_noise: float = 0.0,
+    ) -> Tuple[torch.Tensor, torch.Tensor, int]:
+        """
+        Self-Forcing forward pass with multi-step denoising trajectory.
+
+        Matches guandeh17/Self-Forcing training approach:
+        1. For each temporal chunk, simulate full denoising trajectory
+        2. Randomly select one step to backpropagate gradients (stochastic truncation)
+        3. Update KV cache with denoised result for next chunk
+
+        This bridges the train-test gap by training on the same denoising
+        trajectory used during inference.
+
+        Args:
+            x_clean: Clean latent video (B, C, T, H, W) - used only for shape/target
+            context: Text embeddings (B, L, D)
+            chunk_size: Number of frames per chunk
+            num_inference_steps: Number of denoising steps (default 10)
+            num_train_timesteps: Total timesteps for schedule (default 1000)
+            shift: Timestep shift for flow matching schedule (default 8.0)
+            context_noise: Optional noise level for context frames (default 0.0)
+
+        Returns:
+            Tuple of (predicted x0, target x0, exit_step_index)
+        """
+        B, C, T, H, W = x_clean.shape
+        block_size = self.get_block_size(x_clean.shape)
+        num_chunks = (T + chunk_size - 1) // chunk_size
+        device = x_clean.device
+        dtype = x_clean.dtype
+
+        # Build denoising timestep schedule (high to low)
+        # Using shifted schedule like Self-Forcing: t' = shift * t / (1 + (shift-1) * t)
+        timesteps = self._build_timestep_schedule(
+            num_inference_steps, num_train_timesteps, shift, device
+        )
+
+        # Clean KV cache
+        self.dit.clean_cache()
+
+        all_x0_pred = []
+        all_x0_target = []
+
+        # Randomly select which denoising step to backprop through (same for all chunks)
+        exit_step_idx = torch.randint(0, num_inference_steps, (1,), device=device).item()
+
+        for chunk_idx in range(num_chunks):
+            start_t = chunk_idx * chunk_size
+            end_t = min(start_t + chunk_size, T)
+
+            # Get current chunk (target)
+            x_chunk_target = x_clean[:, :, start_t:end_t, :, :]
+
+            # Start from pure noise
+            x_noisy = torch.randn_like(x_chunk_target)
+
+            # Build attention mask
+            if chunk_idx == 0:
+                attention_mask = self._build_causal_mask(
+                    x_noisy.shape, block_size, self.device
+                )
+                prefill = True
+                chunk_prefill = False
+            else:
+                attention_mask = self._build_chunk_causal_mask(
+                    x_noisy.shape, block_size,
+                    kv_len=self.dit.kvcache_len(),
+                    device=self.device
+                )
+                prefill = False
+                chunk_prefill = False
+
+            # Initialize cache with clean frames for first chunk
+            if chunk_idx == 0:
+                attention_mask_prefill = self._build_causal_mask(
+                    x_chunk_target.shape, block_size, self.device
+                )
+                t_clean = torch.zeros(B, device=device, dtype=dtype)
+                self.forward_causal(
+                    x=x_chunk_target,
+                    t=t_clean,
+                    context=context,
+                    attention_mask=attention_mask_prefill,  # Mask for 1 frame
+                    use_cache=False,  # Not needed, prefill handles it
+                    prefill=True,     # Initializes cache
+                    chunk_prefill=False,
+                    block_idx=None,   # Must be None for first chunk
+                )
+                # Need NEW attention mask that accounts for cached frame
+                attention_mask_with_cache = self._build_chunk_causal_mask(
+                    x_noisy.shape,
+                    block_size,
+                    kv_len=self.dit.kvcache_len(),  # Now has 460 tokens
+                    device=self.device
+                )
+            else:
+                attention_mask_with_cache = attention_mask
+
+            # Denoising loop
+            x0_pred = None
+            for step_idx, current_t in enumerate(timesteps):
+                t_tensor = torch.full((B,), current_t, device=device, dtype=dtype)
+
+                is_exit_step = (step_idx == exit_step_idx)
+                is_last_step = (step_idx == num_inference_steps - 1)
+
+                if not is_exit_step:
+                    # Forward pass WITHOUT gradients
+                    with torch.no_grad():
+                        v_pred = self.forward_causal(
+                            x=x_noisy,
+                            t=t_tensor,
+                            context=context,
+                            attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                            use_cache=False,
+                            prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
+                            chunk_prefill=chunk_prefill,
+                            block_idx=1 if chunk_idx == 0 else (None if prefill else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                        )
+
+                        # Convert velocity to x0 prediction
+                        # For flow matching: v = noise - x0, so x0 = noise - v
+                        # But we need to use the ODE formula for proper denoising
+                        x0_pred = self._velocity_to_x0(x_noisy, v_pred, current_t, num_train_timesteps)
+
+                        if not is_last_step:
+                            # Add noise at next timestep level
+                            next_t = timesteps[step_idx + 1]
+                            x_noisy = self._add_noise_at_timestep(x0_pred, next_t, num_train_timesteps)
+                else:
+                    # Forward pass WITH gradients (exit step)
+                    v_pred = self.forward_causal(
+                        x=x_noisy,
+                        t=t_tensor,
+                        context=context,
+                        attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                        use_cache=False,
+                        prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
+                        chunk_prefill=chunk_prefill,
+                        block_idx=1 if chunk_idx == 0 else (None if prefill else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                    )
+
+                    # Convert velocity to x0 prediction
+                    x0_pred = self._velocity_to_x0(x_noisy, v_pred, current_t, num_train_timesteps)
+                    break  # Exit after gradient step
+
+            # Update KV cache with denoised result (optionally with context noise)
+            with torch.no_grad():
+                if context_noise > 0:
+                    x_for_cache = self._add_noise_at_timestep(
+                        x0_pred.detach(), context_noise, num_train_timesteps
+                    )
+                    t_cache = torch.full((B,), context_noise, device=device, dtype=dtype)
+                else:
+                    x_for_cache = x0_pred.detach()
+                    t_cache = torch.zeros(B, device=device, dtype=dtype)
+
+                self.forward_causal(
+                    x=x_for_cache,
+                    t=t_cache,
+                    context=context,
+                    attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                    use_cache=True,
+                    prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
+                    chunk_prefill=chunk_prefill,
+                    block_idx=1 if chunk_idx == 0 else (None if prefill else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                )
+
+            all_x0_pred.append(x0_pred)
+            all_x0_target.append(x_chunk_target)
+
+        # Clean up cache
+        self.dit.clean_cache()
+
+        # Concatenate all chunks
+        x0_pred_all = torch.cat(all_x0_pred, dim=2)
+        x0_target_all = torch.cat(all_x0_target, dim=2)
+
+        # DEBUG: Check outputs before returning
+        if torch.isnan(x0_pred_all).any() or torch.isinf(x0_pred_all).any():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[DEBUG NaN] forward_self_forcing_multistep: x0_pred_all contains NaN/Inf: "
+                        f"nan_count={torch.isnan(x0_pred_all).sum().item()}, "
+                        f"inf_count={torch.isinf(x0_pred_all).sum().item()}, "
+                        f"shape={x0_pred_all.shape}, exit_step={exit_step_idx}")
+        
+        if torch.isnan(x0_target_all).any() or torch.isinf(x0_target_all).any():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[DEBUG NaN] forward_self_forcing_multistep: x0_target_all contains NaN/Inf: "
+                        f"nan_count={torch.isnan(x0_target_all).sum().item()}, "
+                        f"inf_count={torch.isinf(x0_target_all).sum().item()}, "
+                        f"shape={x0_target_all.shape}")
+
+        return x0_pred_all, x0_target_all, exit_step_idx
+
+    def _build_timestep_schedule(
+        self,
+        num_inference_steps: int,
+        num_train_timesteps: int,
+        shift: float,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """
+        Build denoising timestep schedule with shift.
+
+        Uses shifted schedule: t' = shift * t / (1 + (shift-1) * t)
+        This is the same schedule used in Self-Forcing and flow matching models.
+        """
+        # Linear spacing from 1 to 0
+        t_normalized = torch.linspace(1.0, 0.0, num_inference_steps + 1, device=device)[:-1]
+
+        # Apply shift
+        if shift != 1.0:
+            t_shifted = shift * t_normalized / (1 + (shift - 1) * t_normalized)
+        else:
+            t_shifted = t_normalized
+
+        # Scale to [0, num_train_timesteps]
+        timesteps = t_shifted * num_train_timesteps
+
+        return timesteps
+
+    def _velocity_to_x0(
+        self,
+        x_t: torch.Tensor,
+        v_pred: torch.Tensor,
+        t: float,
+        num_train_timesteps: int,
+    ) -> torch.Tensor:
+        """
+        Convert velocity prediction to x0 prediction.
+
+        For flow matching with x_t = (1-σ)*x0 + σ*noise:
+        v = noise - x0
+        x0 = x_t - σ*v  (where σ = t/num_train_timesteps)
+        """
+        sigma = t / num_train_timesteps
+        x0_pred = x_t - sigma * v_pred
+        return x0_pred
+
+    def _add_noise_at_timestep(
+        self,
+        x0: torch.Tensor,
+        t: float,
+        num_train_timesteps: int,
+    ) -> torch.Tensor:
+        """
+        Add noise to x0 at a specific timestep.
+
+        x_t = (1-σ)*x0 + σ*noise  (where σ = t/num_train_timesteps)
+        """
+        sigma = t / num_train_timesteps
+        noise = torch.randn_like(x0)
+        x_t = (1 - sigma) * x0 + sigma * noise
+        return x_t
 
     def _build_causal_mask(
         self,
@@ -509,6 +814,7 @@ class WanModelCausalTrainingWrapper(nn.Module):
             num_kvblock=num_kv_blocks,
             block_size=block_size,
             device=device,
+            debug=self.debug,
         )
 
     def forward(
@@ -548,6 +854,566 @@ class WanModelCausalTrainingWrapper(nn.Module):
             use_cache=False,
             prefill=True,  # Correct positional encoding for each frame
         )
+
+    # =========================================================================
+    # Train-Eval Alignment: New functions to match eval's cache pop behavior
+    # =========================================================================
+
+    def _simulate_cache_pop(self, keep_sink_frames: int = 1) -> bool:
+        """
+        Simulate eval's cache pop: keep only first frame(s) as sink.
+
+        This matches eval behavior in textimage2video_causal_server.py:541-545:
+            if kvcache_len > T * block_size:
+                self.model.pop_kvcache(T * block_size)
+
+        Args:
+            keep_sink_frames: Number of frames to keep (default: 1 = first frame only)
+
+        Returns:
+            True if cache was popped and chunk_prefill is needed
+        """
+        block_size = self.get_block_size_default()
+        sink_tokens = keep_sink_frames * block_size
+        current_len = self.dit.kvcache_len()
+
+        if current_len is None or current_len <= sink_tokens:
+            return False
+
+        pop_amount = current_len - sink_tokens
+        self.dit.pop_kvcache(pop_amount)
+        return True
+
+    def get_block_size_default(self) -> int:
+        """Get default block size (H*W//4 for typical resolution)."""
+        # Default for 736x640 resolution: 736//8 * 640//8 // 4 = 92 * 80 // 4 = 1840
+        # But actual block_size from shape is H*W//4 where H,W are latent dims
+        # For 736x640 -> latent 92x80 -> block_size = 92*80//4 = 1840? No wait...
+        # Looking at get_block_size: H*W//4 where H,W are from x.shape (latent)
+        # For 736x640 input -> VAE stride (8,8) -> latent 92x80
+        # block_size = 92 * 80 // 4 = 1840? Let me check...
+        # Actually from logs: block_size=460, which is 92*80//16 or similar
+        # Let's use a computed default or store it
+        return 460  # Default for 736x640 resolution
+
+    def forward_self_forcing_aligned(
+        self,
+        x_clean: torch.Tensor,
+        t: torch.Tensor,
+        context,  # Can be torch.Tensor or List[torch.Tensor]
+        chunk_size: int = 1,
+        same_t_across_chunks: bool = True,
+        # Alignment config
+        simulate_cache_pop: bool = True,
+        sink_frames: int = 1,
+        frames_per_round: int = 4,
+        debug: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Self-Forcing forward pass ALIGNED with eval behavior.
+
+        Key differences from forward_self_forcing:
+        1. Simulates cache pop at round boundaries (keeps only sink frame)
+        2. Uses chunk_prefill=True after cache pop (matches eval)
+        3. Uses relative RoPE positioning via kv_num_block (matches eval)
+        4. Attention mask matches eval's sink + causal pattern
+
+        This addresses the train-eval mismatches:
+        - Mismatch #1: chunk_prefill flag (now True after pop)
+        - Mismatch #2: Cache behavior (now pops to sink)
+        - Mismatch #3: RoPE positioning (now relative via chunk_prefill)
+        - Mismatch #4: Attention mask (now sink + causal)
+        - Mismatch #5: Max context (now bounded by cache pop)
+
+        Args:
+            x_clean: Clean latent video (B, C, T, H, W)
+            t: Timestep tensor (B,) in [0, 1]
+            context: Text embeddings
+            chunk_size: Frames per chunk (default 1 for per-frame)
+            same_t_across_chunks: Use same timestep for all chunks
+            simulate_cache_pop: Enable cache pop simulation
+            sink_frames: Frames to keep after pop (default 1)
+            frames_per_round: Frames per round before pop
+            debug: Enable debug prints
+
+        Returns:
+            Tuple of (predicted velocities, target velocities)
+        """
+        B, C, T, H, W = x_clean.shape
+        block_size = self.get_block_size(x_clean.shape)
+        num_chunks = (T + chunk_size - 1) // chunk_size
+
+        if debug:
+            print(f"[TRAIN_ALIGNED] Starting: T={T}, chunk_size={chunk_size}, "
+                  f"num_chunks={num_chunks}, frames_per_round={frames_per_round}, "
+                  f"block_size={block_size}")
+
+        # Clean KV cache
+        with time_block("Cache Clean", device=self.device):
+            self.dit.clean_cache()
+
+        all_v_pred = []
+        all_v_target = []
+
+        chunk_idx = 0
+        while chunk_idx < num_chunks:
+            # Check if this is a chunk_prefill point
+            is_chunk_prefill = (simulate_cache_pop and
+                               chunk_idx > 0 and
+                               chunk_idx % frames_per_round == 0 and
+                               (num_chunks - chunk_idx) >= frames_per_round)
+
+            # Determine how many frames to process
+            if is_chunk_prefill:
+                num_frames_to_process = frames_per_round  # Process multiple frames
+            else:
+                num_frames_to_process = 1  # Process single frame
+
+            # Calculate time range based on num_frames_to_process
+            start_t = chunk_idx * chunk_size
+            end_t = min(start_t + num_frames_to_process * chunk_size, T)
+
+            # Get current chunk (may contain multiple frames if chunk_prefill)
+            x_chunk = x_clean[:, :, start_t:end_t, :, :]
+
+            # Sample noise and create noised version
+            x0_chunk = torch.randn_like(x_chunk)
+
+            # Use same or different timestep per chunk
+            if same_t_across_chunks:
+                t_chunk = t
+            else:
+                t_chunk = torch.rand(B, device=x_chunk.device)
+
+            # Expand timestep for broadcasting
+            t_expanded = t_chunk
+            while t_expanded.dim() < x_chunk.dim():
+                t_expanded = t_expanded.unsqueeze(-1)
+
+            # Create noised chunk: x_t = (1-t) * x_clean + t * noise
+            x_noised = (1 - t_expanded) * x_chunk + t_expanded * x0_chunk
+            # Target velocity: v = noise - clean
+            v_target = x0_chunk - x_chunk
+
+            # Get current cache state for debug
+            kv_len = self.dit.kvcache_len() if self.dit.kvcache_len() else 0
+
+            if debug:
+                print(f"[TRAIN_ALIGNED] chunk_idx={chunk_idx}, kvcache_len={kv_len}, "
+                      f"kv_frames={kv_len // block_size}, processing {num_frames_to_process} frame(s)")
+
+            # Determine mode based on chunk position
+            if chunk_idx == 0:
+                # First chunk: prefill mode (same as original)
+                attention_mask = self._build_causal_mask(
+                    x_noised.shape, block_size, self.device
+                )
+                prefill = True
+                chunk_prefill = False
+
+                if debug:
+                    print(f"[TRAIN_ALIGNED] Mode: PREFILL (first chunk)")
+
+            elif is_chunk_prefill:
+                # Round boundary: simulate cache pop, then chunk_prefill
+                kv_before = self.dit.kvcache_len()
+                with time_block("Cache Pop", device=self.device):
+                    needs_pop = self._simulate_cache_pop(keep_sink_frames=sink_frames)
+                kv_after = self.dit.kvcache_len()
+
+                if debug:
+                    print(f"[TRAIN_ALIGNED] CACHE POP: {kv_before} -> {kv_after} tokens "
+                          f"({kv_before // block_size} -> {kv_after // block_size} frames)")
+
+                # Build chunk_prefill attention mask for multiple frames
+                # After pop, cache has sink_frames blocks
+                # Process num_frames_to_process frames in this iteration
+                num_new_frames = num_frames_to_process
+                num_sink_blocks = sink_frames
+
+                attention_mask = get_flex_block_mask_chunk_prefill(
+                    num_qblock=num_new_frames,
+                    num_kvblock=num_sink_blocks,
+                    block_size=block_size,
+                    device=self.device,
+                )
+
+                prefill = False
+                chunk_prefill = True  # KEY: Enable chunk_prefill mode
+
+                if debug:
+                    print(f"[TRAIN_ALIGNED] Mode: CHUNK_PREFILL (after pop), "
+                          f"num_qblock={num_new_frames}, num_kvblock={num_sink_blocks}")
+
+            else:
+                # Normal cache mode
+                attention_mask = self._build_chunk_causal_mask(
+                    x_noised.shape, block_size,
+                    kv_len=self.dit.kvcache_len(),
+                    device=self.device
+                )
+                prefill = False
+                chunk_prefill = False
+
+                if debug:
+                    print(f"[TRAIN_ALIGNED] Mode: CACHE (block_idx={chunk_idx})")
+
+            # Scale timestep for model input: model expects t in [0, 1000]
+            t_model = t_chunk * 1000.0
+
+            if debug:
+                print(f"[TRAIN_ALIGNED] Forward: prefill={prefill}, chunk_prefill={chunk_prefill}, "
+                      f"block_idx={None if prefill or chunk_prefill else chunk_idx}")
+
+            if chunk_idx == 0:
+                # Step 1: Initialize cache with clean frames
+                attention_mask_prefill = self._build_causal_mask(
+                    x_chunk.shape, block_size, self.device
+                )
+                t_clean = torch.zeros_like(t_model) if isinstance(t_model, torch.Tensor) else 0.0
+                self.forward_causal(
+                    x=x_chunk,
+                    t=t_clean,
+                    context=context,
+                    attention_mask=attention_mask_prefill,  # Mask for 1 frame
+                    use_cache=False,  # Not needed, prefill handles it
+                    prefill=True,     # Initializes cache
+                    chunk_prefill=False,
+                    block_idx=None,   # Must be None for first chunk
+                )
+
+                # Step 2: Predict with noised frames using the cache
+                # Need NEW attention mask that accounts for cached frame
+                attention_mask_with_cache = self._build_chunk_causal_mask(
+                    x_noised.shape,
+                    block_size,
+                    kv_len=self.dit.kvcache_len(),  # Now has 460 tokens
+                    device=self.device
+                )
+                v_pred = self.forward_causal(
+                    x=x_noised,
+                    t=t_model,
+                    context=context,
+                    attention_mask=attention_mask_with_cache,  # ← NEW mask
+                    use_cache=False,  # Use cache without updating
+                    prefill=False,    # ← KEY FIX: Don't reinitialize!
+                    chunk_prefill=False,
+                    block_idx=1,      # ← Fix: Use block_idx=1 (cache has frame 0, current is frame 1)
+                )
+            else:
+                # 对齐评估代码：先预测，再更新 cache
+                chunk_name = f"Chunk {chunk_idx} ({'chunk_prefill' if chunk_prefill else 'cache'})"
+                with time_block(chunk_name, device=self.device, indent=1):
+                    # Step 1: 先进行预测（使用已存在的 cache，不更新）
+                    # 这与评估代码中每个 timestep 的 forward 一致
+                    v_pred = self.forward_causal(
+                        x=x_noised,
+                        t=t_model,
+                        context=context,
+                        attention_mask=attention_mask,
+                        use_cache=False,  # 使用已存在的 cache 但不更新
+                        prefill=prefill,
+                        chunk_prefill=chunk_prefill,
+                        block_idx=None if prefill or chunk_prefill else chunk_idx,
+                    )
+                    
+                    # Step 2: 预测完成后，使用 clean frame 更新 cache
+                    # 这与评估代码在所有 timestep 完成后更新 cache 的逻辑一致
+                    t_clean = torch.zeros_like(t_model) if isinstance(t_model, torch.Tensor) else 0.0
+                    kv_len_before = self.dit.kvcache_len()
+                    self.forward_causal(
+                        x=x_chunk,
+                        t=t_clean,
+                        context=context,
+                        attention_mask=attention_mask,
+                        use_cache=True,  # 更新 cache
+                        prefill=prefill,
+                        chunk_prefill=chunk_prefill,
+                        block_idx=None if prefill or chunk_prefill else chunk_idx,
+                    )
+                    kv_len_after = self.dit.kvcache_len()
+                    if debug:
+                        print(f"[TRAIN_ALIGNED] Chunk {chunk_idx} cache updated: "
+                              f"{kv_len_before} -> {kv_len_after} tokens "
+                              f"({kv_len_before // block_size} -> {kv_len_after // block_size} frames), "
+                              f"added {kv_len_after - kv_len_before} tokens")
+
+            all_v_pred.append(v_pred)
+            all_v_target.append(v_target)
+
+            # Increment loop counter
+            chunk_idx += num_frames_to_process
+
+        # Clean up cache after training step
+        self.dit.clean_cache()
+
+        # Concatenate all chunks
+        v_pred_all = torch.cat(all_v_pred, dim=2)
+        v_target_all = torch.cat(all_v_target, dim=2)
+
+        # DEBUG: Check outputs before returning
+        if torch.isnan(v_pred_all).any() or torch.isinf(v_pred_all).any():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[DEBUG NaN] forward_self_forcing_aligned: v_pred_all contains NaN/Inf: "
+                        f"nan_count={torch.isnan(v_pred_all).sum().item()}, "
+                        f"inf_count={torch.isinf(v_pred_all).sum().item()}, "
+                        f"shape={v_pred_all.shape}, "
+                        f"min={v_pred_all.min().item():.6f}, max={v_pred_all.max().item():.6f}, "
+                        f"mean={v_pred_all.mean().item():.6f}")
+        
+        if torch.isnan(v_target_all).any() or torch.isinf(v_target_all).any():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[DEBUG NaN] forward_self_forcing_aligned: v_target_all contains NaN/Inf: "
+                        f"nan_count={torch.isnan(v_target_all).sum().item()}, "
+                        f"inf_count={torch.isinf(v_target_all).sum().item()}, "
+                        f"shape={v_target_all.shape}, "
+                        f"min={v_target_all.min().item():.6f}, max={v_target_all.max().item():.6f}, "
+                        f"mean={v_target_all.mean().item():.6f}")
+
+        if debug:
+            print(f"[TRAIN_ALIGNED] Done: v_pred_all.shape={v_pred_all.shape}")
+
+        return v_pred_all, v_target_all
+
+    def forward_self_forcing_multistep_aligned(
+        self,
+        x_clean: torch.Tensor,
+        context,  # Can be torch.Tensor or List[torch.Tensor]
+        chunk_size: int = 1,
+        num_inference_steps: int = 10,
+        num_train_timesteps: int = 1000,
+        shift: float = 5.0,  # Match eval's timestep_shift
+        context_noise: float = 0.0,
+        # Alignment config
+        simulate_cache_pop: bool = True,
+        sink_frames: int = 1,
+        frames_per_round: int = 4,
+        debug: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, int]:
+        """
+        Self-Forcing multi-step forward pass ALIGNED with eval behavior.
+
+        Combines multi-step denoising trajectory with train-eval alignment:
+        1. Simulates full denoising trajectory per chunk
+        2. Randomly selects one step to backpropagate (stochastic truncation)
+        3. Simulates cache pop at round boundaries
+        4. Uses chunk_prefill=True after cache pop
+
+        Args:
+            x_clean: Clean latent video (B, C, T, H, W)
+            context: Text embeddings
+            chunk_size: Frames per chunk
+            num_inference_steps: Denoising steps (default 10)
+            num_train_timesteps: Total timesteps (default 1000)
+            shift: Timestep shift (default 5.0 to match eval)
+            context_noise: Noise level for context frames
+            simulate_cache_pop: Enable cache pop simulation
+            sink_frames: Frames to keep after pop
+            frames_per_round: Frames per round before pop
+            debug: Enable debug prints
+
+        Returns:
+            Tuple of (predicted x0, target x0, exit_step_index)
+        """
+        B, C, T, H, W = x_clean.shape
+        block_size = self.get_block_size(x_clean.shape)
+        num_chunks = (T + chunk_size - 1) // chunk_size
+        device = x_clean.device
+        dtype = x_clean.dtype
+
+        if debug:
+            print(f"[TRAIN_ALIGNED_MS] Starting: T={T}, num_chunks={num_chunks}, "
+                  f"frames_per_round={frames_per_round}, shift={shift}")
+
+        # Build denoising timestep schedule
+        timesteps = self._build_timestep_schedule(
+            num_inference_steps, num_train_timesteps, shift, device
+        )
+
+        # Clean KV cache
+        self.dit.clean_cache()
+
+        all_x0_pred = []
+        all_x0_target = []
+
+        # Randomly select which denoising step to backprop through
+        exit_step_idx = torch.randint(0, num_inference_steps, (1,), device=device).item()
+
+        for chunk_idx in range(num_chunks):
+            start_t = chunk_idx * chunk_size
+            end_t = min(start_t + chunk_size, T)
+
+            x_chunk_target = x_clean[:, :, start_t:end_t, :, :]
+            x_noisy = torch.randn_like(x_chunk_target)
+
+            kv_len = self.dit.kvcache_len() if self.dit.kvcache_len() else 0
+
+            if debug:
+                print(f"[TRAIN_ALIGNED_MS] chunk_idx={chunk_idx}, kvcache_len={kv_len}")
+
+            # Determine mode based on chunk position
+            if chunk_idx == 0:
+                attention_mask = self._build_causal_mask(
+                    x_noisy.shape, block_size, self.device
+                )
+                prefill = True
+                chunk_prefill = False
+
+                if debug:
+                    print(f"[TRAIN_ALIGNED_MS] Mode: PREFILL")
+
+            elif simulate_cache_pop and chunk_idx == frames_per_round:
+                # Cache pop at round boundary
+                kv_before = self.dit.kvcache_len()
+                self._simulate_cache_pop(keep_sink_frames=sink_frames)
+                kv_after = self.dit.kvcache_len()
+
+                if debug:
+                    print(f"[TRAIN_ALIGNED_MS] CACHE POP: {kv_before} -> {kv_after}")
+
+                num_new_frames = min(frames_per_round, T - chunk_idx)
+                attention_mask = get_flex_block_mask_chunk_prefill(
+                    num_qblock=num_new_frames,
+                    num_kvblock=sink_frames,
+                    block_size=block_size,
+                    device=self.device,
+                )
+                prefill = False
+                chunk_prefill = True
+
+                if debug:
+                    print(f"[TRAIN_ALIGNED_MS] Mode: CHUNK_PREFILL")
+
+            else:
+                attention_mask = self._build_chunk_causal_mask(
+                    x_noisy.shape, block_size,
+                    kv_len=self.dit.kvcache_len(),
+                    device=self.device
+                )
+                prefill = False
+                chunk_prefill = False
+
+                if debug:
+                    print(f"[TRAIN_ALIGNED_MS] Mode: CACHE (block_idx={chunk_idx})")
+
+            # Initialize cache with clean frames for first chunk
+            if chunk_idx == 0:
+                attention_mask_prefill = self._build_causal_mask(
+                    x_chunk_target.shape, block_size, self.device
+                )
+                t_clean = torch.zeros(B, device=device, dtype=dtype)
+                self.forward_causal(
+                    x=x_chunk_target,
+                    t=t_clean,
+                    context=context,
+                    attention_mask=attention_mask_prefill,  # Mask for 1 frame
+                    use_cache=False,  # Not needed, prefill handles it
+                    prefill=True,     # Initializes cache
+                    chunk_prefill=False,
+                    block_idx=None,   # Must be None for first chunk
+                )
+                # Need NEW attention mask that accounts for cached frame
+                attention_mask_with_cache = self._build_chunk_causal_mask(
+                    x_noisy.shape,
+                    block_size,
+                    kv_len=self.dit.kvcache_len(),  # Now has 460 tokens
+                    device=self.device
+                )
+            else:
+                attention_mask_with_cache = attention_mask
+
+            # Denoising loop
+            x0_pred = None
+            for step_idx, current_t in enumerate(timesteps):
+                t_tensor = torch.full((B,), current_t, device=device, dtype=dtype)
+
+                is_exit_step = (step_idx == exit_step_idx)
+                is_last_step = (step_idx == num_inference_steps - 1)
+
+                if not is_exit_step:
+                    with torch.no_grad():
+                        v_pred = self.forward_causal(
+                            x=x_noisy,
+                            t=t_tensor,
+                            context=context,
+                            attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                            use_cache=False,
+                            prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
+                            chunk_prefill=chunk_prefill,
+                            block_idx=1 if chunk_idx == 0 else (None if (prefill or chunk_prefill) else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                        )
+                        x0_pred = self._velocity_to_x0(x_noisy, v_pred, current_t, num_train_timesteps)
+
+                        if not is_last_step:
+                            next_t = timesteps[step_idx + 1]
+                            x_noisy = self._add_noise_at_timestep(x0_pred, next_t, num_train_timesteps)
+                else:
+                    v_pred = self.forward_causal(
+                        x=x_noisy,
+                        t=t_tensor,
+                        context=context,
+                        attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                        use_cache=False,
+                        prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
+                        chunk_prefill=chunk_prefill,
+                        block_idx=1 if chunk_idx == 0 else (None if (prefill or chunk_prefill) else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                    )
+                    x0_pred = self._velocity_to_x0(x_noisy, v_pred, current_t, num_train_timesteps)
+                    break
+
+            # Update KV cache with denoised result
+            with torch.no_grad():
+                if context_noise > 0:
+                    x_for_cache = self._add_noise_at_timestep(
+                        x0_pred.detach(), context_noise, num_train_timesteps
+                    )
+                    t_cache = torch.full((B,), context_noise, device=device, dtype=dtype)
+                else:
+                    x_for_cache = x0_pred.detach()
+                    t_cache = torch.zeros(B, device=device, dtype=dtype)
+
+                self.forward_causal(
+                    x=x_for_cache,
+                    t=t_cache,
+                    context=context,
+                    attention_mask=attention_mask_with_cache,  # ← Use mask with cache for chunk 0
+                    use_cache=True,
+                    prefill=False if chunk_idx == 0 else prefill,  # ← KEY FIX: Don't reinitialize for first chunk
+                    chunk_prefill=chunk_prefill,
+                    block_idx=1 if chunk_idx == 0 else (None if (prefill or chunk_prefill) else chunk_idx),  # ← Fix: Use block_idx=1 for first chunk (cache has frame 0)
+                )
+
+            all_x0_pred.append(x0_pred)
+            all_x0_target.append(x_chunk_target)
+
+        self.dit.clean_cache()
+
+        x0_pred_all = torch.cat(all_x0_pred, dim=2)
+        x0_target_all = torch.cat(all_x0_target, dim=2)
+
+        # DEBUG: Check outputs before returning
+        if torch.isnan(x0_pred_all).any() or torch.isinf(x0_pred_all).any():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[DEBUG NaN] forward_self_forcing_multistep_aligned: x0_pred_all contains NaN/Inf: "
+                        f"nan_count={torch.isnan(x0_pred_all).sum().item()}, "
+                        f"inf_count={torch.isinf(x0_pred_all).sum().item()}, "
+                        f"shape={x0_pred_all.shape}, exit_step={exit_step_idx}")
+        
+        if torch.isnan(x0_target_all).any() or torch.isinf(x0_target_all).any():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[DEBUG NaN] forward_self_forcing_multistep_aligned: x0_target_all contains NaN/Inf: "
+                        f"nan_count={torch.isnan(x0_target_all).sum().item()}, "
+                        f"inf_count={torch.isinf(x0_target_all).sum().item()}, "
+                        f"shape={x0_target_all.shape}")
+
+        if debug:
+            print(f"[TRAIN_ALIGNED_MS] Done: exit_step={exit_step_idx}")
+
+        return x0_pred_all, x0_target_all, exit_step_idx
 
     def get_trainable_parameters(self) -> List[nn.Parameter]:
         """Get list of trainable parameters (DiT only)."""

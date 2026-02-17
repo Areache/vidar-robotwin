@@ -14,6 +14,14 @@ from torch.distributed.fsdp import (
     BackwardPrefetch,
     CPUOffload,
 )
+
+# ForwardPrefetch may not be available in older PyTorch versions
+try:
+    from torch.distributed.fsdp import ForwardPrefetch
+    FORWARD_PREFETCH_AVAILABLE = True
+except ImportError:
+    ForwardPrefetch = None
+    FORWARD_PREFETCH_AVAILABLE = False
 from torch.distributed.fsdp.wrap import (
     transformer_auto_wrap_policy,
     size_based_auto_wrap_policy,
@@ -144,6 +152,8 @@ def wrap_model_fsdp(
     cpu_offload: bool = False,
     activation_checkpointing: bool = False,
     use_orig_params: bool = True,
+    sync_module_states: bool = False,
+    forward_prefetch: bool = False,
 ) -> FSDP:
     """
     Wrap model with FSDP.
@@ -172,17 +182,34 @@ def wrap_model_fsdp(
     if activation_checkpointing and transformer_layer_cls:
         apply_activation_checkpointing(model, transformer_layer_cls)
 
+    # Forward prefetch setting (if available)
+    forward_prefetch_policy = None
+    if forward_prefetch and FORWARD_PREFETCH_AVAILABLE:
+        forward_prefetch_policy = ForwardPrefetch.FORWARD_PRE
+    elif forward_prefetch and not FORWARD_PREFETCH_AVAILABLE:
+        import warnings
+        warnings.warn("ForwardPrefetch is not available in this PyTorch version. Ignoring forward_prefetch=True.")
+    
     # Wrap with FSDP
-    model = FSDP(
-        model,
-        sharding_strategy=shard_strategy,
-        mixed_precision=mp_policy,
-        auto_wrap_policy=auto_wrap_policy,
-        cpu_offload=cpu_offload_config,
-        device_id=torch.cuda.current_device(),
-        use_orig_params=use_orig_params,
-        backward_prefetch=BackwardPrefetch.BACKWARD_PRE,
-    )
+    fsdp_kwargs = {
+        "sharding_strategy": shard_strategy,
+        "mixed_precision": mp_policy,
+        "auto_wrap_policy": auto_wrap_policy,
+        "cpu_offload": cpu_offload_config,
+        "device_id": torch.cuda.current_device(),
+        "use_orig_params": use_orig_params,
+        "backward_prefetch": BackwardPrefetch.BACKWARD_PRE,
+    }
+    
+    # Add forward_prefetch if enabled
+    if forward_prefetch_policy is not None:
+        fsdp_kwargs["forward_prefetch"] = forward_prefetch_policy
+    
+    # Add sync_module_states if enabled
+    if sync_module_states:
+        fsdp_kwargs["sync_module_states"] = True
+    
+    model = FSDP(model, **fsdp_kwargs)
 
     return model
 
