@@ -1,0 +1,136 @@
+[
+  {
+    "test": "interaction_success_batch",
+    "plan_video": "/mnt/shared-storage-user/kangli/workspace/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal/adjust_bottle/episode1_pred_160.mp4",
+    "actual_video": "/mnt/shared-storage-user/kangli/workspace/cyujie/code/vidar-robotwin/eval_result/ar/ddp_causal/adjust_bottle/episode1.mp4",
+    "task": "adjust_bottle",
+    "plan_frames": 160,
+    "actual_frames": 160,
+    "num_compared": 8,
+    "interaction_success_rate": 0.5,
+    "plan_actual_match_rate": 0.5,
+    "total_latency_s": 22.17,
+    "results": [
+      {
+        "test": "interaction_success",
+        "frame_index": 0,
+        "latency_s": 3.15,
+        "result": {
+          "interaction_success": false,
+          "plan_actual_match": false,
+          "plan_description": "The robot's arms move towards the bottle to position themselves for grasping.",
+          "actual_description": "The robot's arms are positioned but do not appear to be interacting with the bottle.",
+          "mismatch_type": "position_error",
+          "mismatch_detail": "The robot's arms are in the correct position relative to the bottle, but they have not yet grasped it.",
+          "confidence": "medium",
+          "should_retry": true
+        }
+      },
+      {
+        "test": "interaction_success",
+        "frame_index": 22,
+        "latency_s": 2.62,
+        "result": {
+          "interaction_success": true,
+          "plan_actual_match": true,
+          "plan_description": "The robot's arms move towards the bottle to position themselves for grasping.",
+          "actual_description": "The robot's arms are positioned over the bottle, ready to grasp it.",
+          "mismatch_type": "none",
+          "mismatch_detail": "",
+          "confidence": "high",
+          "should_retry": false
+        }
+      },
+      {
+        "test": "interaction_success",
+        "frame_index": 45,
+        "latency_s": 2.67,
+        "result": {
+          "interaction_success": true,
+          "plan_actual_match": true,
+          "plan_description": "The robot's arms move towards the bottle to position themselves for grasping.",
+          "actual_description": "The robot's arms successfully moved towards the bottle and positioned themselves for grasping.",
+          "mismatch_type": "none",
+          "mismatch_detail": "",
+          "confidence": "high",
+          "should_retry": false
+        }
+      },
+      {
+        "test": "interaction_success",
+        "frame_index": 68,
+        "latency_s": 3.07,
+        "result": {
+          "interaction_success": false,
+          "plan_actual_match": false,
+          "plan_description": "The robot's grippers close around the bottle to secure it.",
+          "actual_description": "The robot did not interact with any object and remained stationary.",
+          "mismatch_type": "grasp_failure",
+          "mismatch_detail": "The robot failed to grasp the bottle, possibly due to incorrect positioning or lack of detection.",
+          "confidence": "medium",
+          "should_retry": true
+        }
+      },
+      {
+        "test": "interaction_success",
+        "frame_index": 90,
+        "latency_s": 2.36,
+        "result": {
+          "interaction_success": true,
+          "plan_actual_match": true,
+          "plan_description": "The robot's grippers close around the bottle to secure it.",
+          "actual_description": "The robot's grippers close around the bottle to secure it.",
+          "mismatch_type": "none",
+          "mismatch_detail": "",
+          "confidence": "high",
+          "should_retry": false
+        }
+      },
+      {
+        "test": "interaction_success",
+        "frame_index": 113,
+        "latency_s": 3.31,
+        "result": {
+          "interaction_success": false,
+          "plan_actual_match": false,
+          "plan_description": "The robot should lift the bottle off the table.",
+          "actual_description": "The robot did not lift the bottle off the table; it appears to be in a similar position but without the intended action of lifting.",
+          "mismatch_type": "position_error",
+          "mismatch_detail": "The robot's end-effector is in the same position as in the planned image, indicating no movement occurred.",
+          "confidence": "low",
+          "should_retry": true
+        }
+      },
+      {
+        "test": "interaction_success",
+        "frame_index": 136,
+        "latency_s": 2.78,
+        "result": {
+          "interaction_success": false,
+          "plan_actual_match": false,
+          "plan_description": "The robot should lift the bottle off the table.",
+          "actual_description": "The robot did not lift the bottle off the table; it remained stationary.",
+          "mismatch_type": "position_error",
+          "mismatch_detail": "The robot failed to move the bottle, indicating an error in positioning or control.",
+          "confidence": "medium",
+          "should_retry": true
+        }
+      },
+      {
+        "test": "interaction_success",
+        "frame_index": 159,
+        "latency_s": 2.21,
+        "result": {
+          "interaction_success": true,
+          "plan_actual_match": true,
+          "plan_description": "The robot should lift the bottle off the table.",
+          "actual_description": "The robot successfully lifted the bottle off the table.",
+          "mismatch_type": "none",
+          "mismatch_detail": "",
+          "confidence": "high",
+          "should_retry": false
+        }
+      }
+    ]
+  }
+]

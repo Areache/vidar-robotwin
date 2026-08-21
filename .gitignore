@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 训练/实验产物 —— 不应进版本库
+wandb/
+logs/
+experiments/subgoal/results/
+experiments/gt_keyframe_test/.keyframe_cache/
+eval_test/

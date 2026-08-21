@@ -1,0 +1,137 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    python_version: 3.10.19
+    cli_version: 0.23.1
+    framework: huggingface
+    huggingface_version: 4.57.3
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1769386570
+    t:
+      1:
+      - 1
+      - 5
+      - 11
+      - 41
+      - 49
+      - 53
+      - 71
+      - 83
+      3:
+      - 4
+      - 16
+      - 42
+      4: 3.10.19
+      5: 0.23.1
+      6: 4.57.3
+      13: linux-x86_64
+model:
+  desc: null
+  value:
+    ckpt_dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/Wan2.2-TI2V-5B
+    pt_dir: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/vidarc.pt
+    model_class: WanModelCausal
+    gradient_checkpointing: true
+    chunk_size: 1
+    same_t_across_chunks: true
+training:
+  desc: null
+  value:
+    num_steps: 4000
+    batch_size: 1
+    gradient_accumulation: 32
+    gradient_accumulation_steps: 32
+    lr: 2.0e-05
+    weight_decay: 0.1
+    beta1: 0.9
+    beta2: 0.999
+    epsilon: 1.0e-08
+    warmup_steps: 30
+    scheduler: cosine
+    min_lr: null
+    freeze:
+    - t5
+    - vae
+    eta: 3.0
+    use_embodiment_loss: true
+    debug: false
+    max_steps: 4000
+data:
+  desc: null
+  value:
+    data_dir:
+    - /mnt/shared-storage-user/qinyiran/cyujie/cyujie/datasets/RoboTwin2.0/dataset/processed
+    - /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/datasets/robotwin/processed
+    dataset_type: hdf5
+    num_frames: 40
+    resolution:
+    - 736
+    - 640
+    fps: 10
+    num_workers: 16
+    pin_memory: true
+    cfg_prob: 0.1
+    prefetch_factor: 8
+    persistent_workers: true
+loss:
+  desc: null
+  value:
+    type: causal_flow_matching
+    embodiment_aware: true
+    eta: 3.0
+    lambda_mask: 0.003
+self_forcing:
+  desc: null
+  value:
+    enabled: false
+    causal: true
+    chunk_size: 1
+    kv_cache_length: 64
+    same_step_across_blocks: true
+distributed:
+  desc: null
+  value:
+    use_fsdp: true
+    sharding_strategy: FULL_SHARD
+    mixed_precision: bf16
+    activation_checkpointing: true
+    cpu_offload: false
+logging:
+  desc: null
+  value:
+    output_dir: ./output_vidarc
+    log_interval: 2
+    save_interval: 35
+    eval_interval: 4000
+    use_wandb: true
+    wandb_project: vidarc-training
+    wandb_entity: null
+    wandb_run_id: 9kzxlxdb
+output:
+  desc: null
+  value:
+    output_dir: ./output_vidarc
+    save_path: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/checkpoints/vidarc_4x.pt
+    save_optimizer: true
+    save_scheduler: true
+    log_interval: 50
+    save_interval: 1000
+    resume: null
+evaluation:
+  desc: null
+  value:
+    enabled: true
+    run_after_save: false
+    task_name: adjust_bottle
+    task_config: hd_clean
+    idm_path: /mnt/shared-storage-user/qinyiran/cyujie/cyujie/mounts/qinyiran/vidar/vidar_ckpts/idm.pt
+    num_new_frames: 16
+    num_sampling_steps: 10
+    cfg_scale: 3.0
+    prefix: ''
+seed:
+  desc: null
+  value: 42
